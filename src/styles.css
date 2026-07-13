@@ -1,0 +1,169 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@theme inline {
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Archivo Narrow", "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* Tighter, more consistent radius scale */
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl:  10px;
+  --radius-2xl: 12px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-elevated: var(--elevated);
+  --color-shell: var(--shell);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+}
+
+:root {
+  --radius: 8px;
+
+  /*
+   * Three-layer depth:
+   *  --shell   = darkest outer backdrop (html/body bg)
+   *  --panel   = header bar — slightly lighter, sits above content
+   *  --surface = sidebar + main content container — same colour, unified
+   *  --card    = cards inside content
+   *  --elevated= hover/input states
+   */
+  --shell:    oklch(0.09 0.004 285);  /* near-black outer backdrop         */
+  --panel:    oklch(0.13 0.005 285);  /* sticky header bar                 */
+  --surface:  oklch(0.17 0.005 285);  /* sidebar + main content bg         */
+  --card:     oklch(0.205 0.005 285); /* cards inside surface              */
+  --elevated: oklch(0.245 0.005 285); /* hover states, inputs              */
+
+  /* Map to expected token names */
+  --background:          var(--surface);
+  --foreground:          oklch(0.97 0.001 285);
+  --card-foreground:     oklch(0.97 0.001 285);
+  --popover:             var(--elevated);
+  --popover-foreground:  oklch(0.97 0.001 285);
+  --primary:             oklch(0.97 0.001 285);
+  --primary-foreground:  var(--shell);
+  --secondary:           var(--elevated);
+  --secondary-foreground:oklch(0.97 0.001 285);
+  --muted:               var(--elevated);
+  --muted-foreground:    oklch(0.60 0.008 285);
+  --accent:              oklch(0.28 0.005 285);
+  --accent-foreground:   oklch(0.97 0.001 285);
+  --destructive:         oklch(0.63 0.22 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border:              oklch(0.24 0.005 285);
+  --input:               oklch(0.24 0.005 285);
+  --ring:                oklch(0.50 0.01 285);
+
+  --success: oklch(0.72 0.19 145);
+  --warning: oklch(0.85 0.17 90);
+  --danger:  oklch(0.67 0.24 25);
+
+  /* sidebar width — used for the collapsible toggle */
+  --sidebar-w: 232px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html, body {
+    /* Outermost shell is the darkest layer — sidebar/header sit on top of this */
+    background-color: var(--shell);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+    font-size: 14px;
+  }
+  .font-display {
+    font-family: var(--font-display);
+    font-stretch: 100%;
+  }
+  .font-numeric {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+}
+
+@utility live-dot {
+  position: relative;
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  box-shadow: 0 0 0 0 var(--color-danger);
+  animation: pulse-dot 1.8s ease-out infinite;
+}
+
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-danger) 60%, transparent); }
+  70% { box-shadow: 0 0 0 8px color-mix(in oklab, var(--color-danger) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-danger) 0%, transparent); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@utility animate-fade-up {
+  animation: fade-up 400ms ease-out both;
+}
+
+@keyframes preload-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+@utility animate-preload-bar {
+  animation: preload-bar 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Thin scrollbar ──────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.30 0.005 285) transparent;
+}
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: oklch(0.28 0.005 285);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.38 0.005 285);
+}
