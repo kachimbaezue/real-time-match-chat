@@ -1,21 +1,32 @@
 /**
- * Frontend API client — talks to our Express backend which proxies TxLine data.
- * Falls back to the static match data when the backend is unavailable.
+ * Pulse API client
+ * Talks to the backend which normalizes TxLINE data into the Match shape.
+ * Falls back gracefully if the backend is not reachable.
  */
+import type { Match } from "@/lib/matches";
 
-export const BACKEND_URL =
-  typeof window !== "undefined"
-    ? (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001")
-    : "http://localhost:3001";
+const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
 
-export async function fetchLiveMatches() {
-  const res = await fetch(`${BACKEND_URL}/matches/live`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`API error ${res.status} on ${path}`);
+  return res.json() as Promise<T>;
 }
 
-export async function fetchMatchById(id: string) {
-  const res = await fetch(`${BACKEND_URL}/matches/${id}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+export interface HomeMatches {
+  live: Match[];
+  upcoming: Match[];
+  recent: Match[];
+}
+
+/** GET /matches/live — returns live, upcoming, and recent matches */
+export async function fetchHomeMatches(): Promise<HomeMatches> {
+  return get<HomeMatches>("/matches/live");
+}
+
+/** GET /matches/:id — full match detail */
+export async function fetchMatch(id: string): Promise<Match> {
+  return get<Match>(`/matches/${id}`);
 }

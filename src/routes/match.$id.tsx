@@ -18,6 +18,17 @@ import {
   Location01Icon,
 } from "hugeicons-react";
 import { getMatch, type Match, type TimelineEvent } from "@/lib/matches";
+import { fetchMatch } from "@/lib/api";
+import {
+  onScoreUpdated,
+  onStatsUpdated,
+  onTimelineUpdated,
+  onMomentumUpdated,
+  onMatchPulseUpdated,
+  onWinProbabilityUpdated,
+  onJoinedNowUpdated,
+  onMatchFinished,
+} from "@/lib/socket";
 import { Flag } from "@/components/Flag";
 import { Scoreboard } from "@/components/Scoreboard";
 import { PredictionRow } from "@/components/PredictionRow";
@@ -25,10 +36,15 @@ import { MomentumBar } from "@/routes/index";
 import { MatchDetailSkeleton } from "@/components/SkeletonLoader";
 
 export const Route = createFileRoute("/match/$id")({
-  loader: ({ params }) => {
-    const match = getMatch(params.id);
-    if (!match) throw notFound();
-    return match;
+  loader: async ({ params }) => {
+    // Try real API first, fall back to static mock
+    try {
+      return await fetchMatch(params.id);
+    } catch {
+      const match = getMatch(params.id);
+      if (!match) throw notFound();
+      return match;
+    }
   },
   head: ({ loaderData: m }) => ({
     meta: [
@@ -47,14 +63,75 @@ export const Route = createFileRoute("/match/$id")({
 });
 
 function MatchPage() {
-  const match = Route.useLoaderData();
+  const loaderMatch = Route.useLoaderData();
+  // Local state so socket updates re-render without a page reload
+  const [match, setMatch] = useState<Match>(loaderMatch);
   const isFinished = match.status === "finished";
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Brief delay so skeleton is visible on slow networks
+    setMatch(loaderMatch);
+  }, [loaderMatch.id]);
+
+  useEffect(() => {
     const t = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(t);
+  }, [match.id]);
+
+  // Wire all socket events scoped to this match
+  useEffect(() => {
+    const id = match.id;
+
+    const unsubs = [
+      onScoreUpdated((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({
+          ...m,
+          home: { ...m.home, score: p.homeScore },
+          away: { ...m.away, score: p.awayScore },
+          minute: p.minute,
+        }));
+      }),
+      onStatsUpdated((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({ ...m, stats: p.stats }));
+      }),
+      onTimelineUpdated((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({
+          ...m,
+          timeline: [p.event, ...m.timeline],
+        }));
+      }),
+      onMomentumUpdated((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({ ...m, momentum: p.momentum }));
+      }),
+      onMatchPulseUpdated((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({ ...m, pulse: p.pulse, headline: p.headline }));
+      }),
+      onWinProbabilityUpdated((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({ ...m, winProbability: p.winProbability }));
+      }),
+      onJoinedNowUpdated((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({ ...m, joinedNow: p.joinedNow }));
+      }),
+      onMatchFinished((p) => {
+        if (p.matchId !== id) return;
+        setMatch((m) => ({
+          ...m,
+          status: "finished",
+          home: { ...m.home, score: p.homeScore },
+          away: { ...m.away, score: p.awayScore },
+          turningPoints: p.turningPoints,
+        }));
+      }),
+    ];
+
+    return () => unsubs.forEach((fn) => fn());
   }, [match.id]);
 
   if (!ready) {

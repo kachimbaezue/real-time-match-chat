@@ -8,6 +8,13 @@ import {
   CheckmarkCircle01Icon,
 } from "hugeicons-react";
 import { getLiveMatches, getUpcomingMatches, getRecentMatches, type Match } from "@/lib/matches";
+import { fetchHomeMatches } from "@/lib/api";
+import {
+  onScoreUpdated,
+  onMomentumUpdated,
+  onMatchPulseUpdated,
+  onMatchFinished,
+} from "@/lib/socket";
 import { Flag } from "@/components/Flag";
 import { TopBar } from "@/components/AppLayout";
 import { Scoreboard } from "@/components/Scoreboard";
@@ -29,19 +36,80 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [loading, setLoading] = useState(true);
-  const [live, setLive] = useState<Match[]>([]);
-  const [upcoming, setUpcoming] = useState<Match[]>([]);
-  const [recent, setRecent] = useState<Match[]>([]);
+  // Pre-populate with static data so there's never an undefined state
+  const [live, setLive] = useState<Match[]>(() => getLiveMatches());
+  const [upcoming, setUpcoming] = useState<Match[]>(() => getUpcomingMatches());
+  const [recent, setRecent] = useState<Match[]>(() => getRecentMatches());
 
+  // Load data — try real API first, fall back to static mock already in state
   useEffect(() => {
-    // Simulate brief data load (replace with real fetch when backend is running)
-    const t = setTimeout(() => {
-      setLive(getLiveMatches());
-      setUpcoming(getUpcomingMatches());
-      setRecent(getRecentMatches());
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(t);
+    let cancelled = false;
+
+    // Show skeleton briefly for UX, then resolve
+    fetchHomeMatches()
+      .then((data) => {
+        if (cancelled) return;
+        // Guard against malformed API responses
+        if (Array.isArray(data?.live)) setLive(data.live);
+        if (Array.isArray(data?.upcoming)) setUpcoming(data.upcoming);
+        if (Array.isArray(data?.recent)) setRecent(data.recent);
+      })
+      .catch(() => {
+        // Static data already loaded in initial state — nothing to do
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // Socket: update scores/minute on live cards without refetching
+  useEffect(() => {
+    const unsubScore = onScoreUpdated(({ matchId, homeScore, awayScore, minute }) => {
+      setLive((prev) =>
+        prev.map((m) =>
+          m.id === matchId
+            ? { ...m, home: { ...m.home, score: homeScore }, away: { ...m.away, score: awayScore }, minute }
+            : m
+        )
+      );
+    });
+
+    const unsubMomentum = onMomentumUpdated(({ matchId, momentum }) => {
+      setLive((prev) =>
+        prev.map((m) => (m.id === matchId ? { ...m, momentum } : m))
+      );
+    });
+
+    const unsubPulse = onMatchPulseUpdated(({ matchId, headline }) => {
+      setLive((prev) =>
+        prev.map((m) => (m.id === matchId ? { ...m, headline } : m))
+      );
+    });
+
+    const unsubFinished = onMatchFinished(({ matchId, homeScore, awayScore, turningPoints }) => {
+      setLive((prev) => {
+        const finished = prev.find((m) => m.id === matchId);
+        if (!finished) return prev;
+        const updated: Match = {
+          ...finished,
+          status: "finished",
+          home: { ...finished.home, score: homeScore },
+          away: { ...finished.away, score: awayScore },
+          turningPoints,
+        };
+        setRecent((r) => [updated, ...r]);
+        return prev.filter((m) => m.id !== matchId);
+      });
+    });
+
+    return () => {
+      unsubScore();
+      unsubMomentum();
+      unsubPulse();
+      unsubFinished();
+    };
   }, []);
 
   const featured = live[0];
@@ -152,36 +220,104 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function FeaturedMatch({ match }: { match: Match }) {
+  const [home = 0, draw = 0, away = 0] = match.winProbability ?? [0, 0, 0];
+  const momentumLabel =
+    Math.abs(match.momentum ?? 0) < 15
+      ? "Balanced"
+      : (match.momentum ?? 0) > 0
+        ? match.home.name
+        : match.away.name;
+
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 lg:p-6">
-      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        <span className="live-dot" />
-        <span className="text-foreground">LIVE · {match.minute}'</span>
-        <span>·</span>
-        <span>{match.stage}</span>
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      <div className="flex flex-col lg:flex-row">
+        {/* Left — scoreboard + headline */}
+        <div className="flex-1 p-4 lg:p-6">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <span className="live-dot" />
+            <span className="text-foreground">LIVE · {match.minute}'</span>
+            <span>·</span>
+            <span>{match.stage}</span>
+          </div>
+          <div className="mt-3 flex justify-center lg:justify-start">
+            <Scoreboard
+              home={match.home}
+              away={match.away}
+              minute={match.minute}
+              status={match.status}
+              size="lg"
+            />
+          </div>
+          {match.headline && (
+            <p className="mt-4 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+              {match.headline}
+            </p>
+          )}
+          <Link
+            to="/match/$id"
+            params={{ id: match.id }}
+            className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-foreground hover:underline"
+          >
+            Open match
+            <ArrowRight01Icon size={14} strokeWidth={2} />
+          </Link>
+        </div>
+
+        {/* Divider */}
+        <div className="hidden lg:block w-px bg-border" />
+        <div className="lg:hidden h-px bg-border mx-4" />
+
+        {/* Right — live stats panel */}
+        <div className="lg:w-[220px] shrink-0 p-4 lg:p-5 flex flex-col gap-4">
+          {/* Win probability */}
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">
+              Win probability
+            </p>
+            <div className="flex h-2 overflow-hidden rounded-full gap-0.5">
+              <div className="bg-foreground rounded-l-full transition-[width] duration-700" style={{ width: `${home}%` }} />
+              <div className="bg-muted-foreground/30 transition-[width] duration-700" style={{ width: `${draw}%` }} />
+              <div className="bg-muted-foreground/60 rounded-r-full transition-[width] duration-700" style={{ width: `${away}%` }} />
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
+              <span className="text-foreground font-medium">{home}%</span>
+              <span>{draw}% D</span>
+              <span>{away}%</span>
+            </div>
+          </div>
+
+          {/* Momentum */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Momentum</p>
+              <span className="text-[10px] text-foreground font-medium">{momentumLabel}</span>
+            </div>
+            <div className="relative h-1.5 overflow-hidden rounded-full bg-[var(--color-elevated)]">
+              <div
+                className="absolute inset-y-0 left-0 bg-foreground transition-[width] duration-700"
+                style={{ width: `${50 + (match.momentum ?? 0) / 2}%` }}
+              />
+              <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+            </div>
+          </div>
+
+          {/* Key stats */}
+          <div className="space-y-2">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Stats</p>
+            {[
+              { label: "Possession", home: `${match.stats?.possession?.[0] ?? 0}%`, away: `${match.stats?.possession?.[1] ?? 0}%` },
+              { label: "Shots", home: String(match.stats?.shots?.[0] ?? 0), away: String(match.stats?.shots?.[1] ?? 0) },
+              { label: "xG", home: String(match.stats?.xg?.[0] ?? 0), away: String(match.stats?.xg?.[1] ?? 0) },
+            ].map(({ label, home: h, away: a }) => (
+              <div key={label} className="flex items-center justify-between text-[11px]">
+                <span className="font-medium text-foreground w-6 text-left">{h}</span>
+                <span className="text-muted-foreground flex-1 text-center">{label}</span>
+                <span className="text-muted-foreground w-6 text-right">{a}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="mt-3">
-        <Scoreboard
-          home={match.home}
-          away={match.away}
-          minute={match.minute}
-          status={match.status}
-          size="lg"
-        />
-      </div>
-      {match.headline && (
-        <p className="mt-4 max-w-md text-[13px] leading-relaxed text-muted-foreground">
-          {match.headline}
-        </p>
-      )}
-      <Link
-        to="/match/$id"
-        params={{ id: match.id }}
-        className="mt-4 flex items-center gap-1.5 text-[12px] font-medium text-foreground hover:underline"
-      >
-        Open match
-        <ArrowRight01Icon size={14} strokeWidth={2} />
-      </Link>
     </div>
   );
 }
@@ -189,10 +325,11 @@ function FeaturedMatch({ match }: { match: Match }) {
 export function MatchCard({ match }: { match: Match }) {
   const isLive = match.status === "live";
   const isFinished = match.status === "finished";
+  const momentum = match.momentum ?? 0;
   const momentumLabel =
-    Math.abs(match.momentum) < 15
+    Math.abs(momentum) < 15
       ? "Balanced"
-      : match.momentum > 0
+      : momentum > 0
         ? match.home.short
         : match.away.short;
 
@@ -230,7 +367,7 @@ export function MatchCard({ match }: { match: Match }) {
             <span className="uppercase tracking-widest">Momentum</span>
             <span className="text-foreground">{momentumLabel}</span>
           </div>
-          <MomentumBar value={match.momentum} />
+          <MomentumBar value={momentum} />
         </div>
       )}
 
@@ -274,7 +411,7 @@ function TeamRow({
 }
 
 export function MomentumBar({ value }: { value: number }) {
-  const homePct = 50 + value / 2;
+  const homePct = 50 + (value ?? 0) / 2;
   return (
     <div className="relative h-1.5 overflow-hidden rounded-full bg-[var(--color-elevated)]">
       <div
