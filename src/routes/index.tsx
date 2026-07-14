@@ -7,7 +7,7 @@ import {
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
 } from "hugeicons-react";
-import { getLiveMatches, getUpcomingMatches, getRecentMatches, type Match } from "@/lib/matches";
+import { type Match } from "@/lib/matches";
 import { fetchHomeMatches } from "@/lib/api";
 import {
   onScoreUpdated,
@@ -36,26 +36,24 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [loading, setLoading] = useState(true);
-  // Pre-populate with static data so there's never an undefined state
-  const [live, setLive] = useState<Match[]>(() => getLiveMatches());
-  const [upcoming, setUpcoming] = useState<Match[]>(() => getUpcomingMatches());
-  const [recent, setRecent] = useState<Match[]>(() => getRecentMatches());
+  // Start empty — real data only from backend
+  const [live, setLive] = useState<Match[]>([]);
+  const [upcoming, setUpcoming] = useState<Match[]>([]);
+  const [recent, setRecent] = useState<Match[]>([]);
 
-  // Load data — try real API first, fall back to static mock already in state
+  // Load data from real backend API
   useEffect(() => {
     let cancelled = false;
 
-    // Show skeleton briefly for UX, then resolve
     fetchHomeMatches()
       .then((data) => {
         if (cancelled) return;
-        // Guard against malformed API responses
-        if (Array.isArray(data?.live)) setLive(data.live);
+        if (Array.isArray(data?.live))     setLive(data.live);
         if (Array.isArray(data?.upcoming)) setUpcoming(data.upcoming);
-        if (Array.isArray(data?.recent)) setRecent(data.recent);
+        if (Array.isArray(data?.recent))   setRecent(data.recent);
       })
       .catch(() => {
-        // Static data already loaded in initial state — nothing to do
+        // Backend unavailable — stays empty, skeletons replaced with empty states
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

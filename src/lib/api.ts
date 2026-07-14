@@ -28,5 +28,10 @@ export async function fetchHomeMatches(): Promise<HomeMatches> {
 
 /** GET /matches/:id — full match detail */
 export async function fetchMatch(id: string): Promise<Match> {
-  return get<Match>(`/matches/${id}`);
+  const res = await fetch(`${BASE_URL}/matches/${id}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (res.status === 404) throw new Error(`Match ${id} not found`);
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json() as Promise<Match>;
 }

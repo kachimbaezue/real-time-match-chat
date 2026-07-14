@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { TopBar } from "@/components/AppLayout";
-import { getLiveMatches, type Match } from "@/lib/matches";
+import { type Match } from "@/lib/matches";
+import { fetchHomeMatches } from "@/lib/api";
 import { Flag } from "@/components/Flag";
 import { MomentumBar } from "@/routes/index";
 import { SectionSkeleton } from "@/components/SkeletonLoader";
@@ -22,11 +23,15 @@ function LivePage() {
   const [live, setLive] = useState<Match[]>([]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setLive(getLiveMatches());
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    fetchHomeMatches()
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.live)) setLive(data.live);
+      })
+      .catch(() => {/* backend unavailable — stay empty */})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   return (

@@ -1,59 +1,35 @@
-import { MatchState } from '../types';
-// import { txLineClient } from '../txline/TxLineClient';
-import { MomentumEngine } from './MomentumEngine';
+import { txLineClient, TxFixture } from '../txline/TxLineClient';
+import { MatchState, MatchStatus } from '../types';
+import { MatchNormalizer } from './MatchNormalizer';
 import { AIService } from '../ai/AIService';
-import { logger } from '../utils/logger';
 import { socketService } from '../sockets/SocketService';
+import { logger } from '../utils/logger';
+import { env } from '../config/env';
+
+const LIVE_STATUSES: MatchStatus[] = [
+  'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',
+];
+
+const FINISHED_STATUSES: MatchStatus[] = ['FINISHED'];
 
 export class MatchEngine {
   private matches: Map<string, MatchState> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
-
-  constructor() {
-    // Initialize with a mock match for demonstration purposes if TxLINE isn't available
-    this.matches.set('mock-1', {
-      id: 'mock-1',
-      homeTeam: 'Brazil',
-      awayTeam: 'Argentina',
-      score: { home: 0, away: 0 },
-      minute: 0,
-      status: 'FIRST_HALF',
-      competition: 'World Cup',
-      venue: 'Lusail Stadium',
-      kickoffTime: new Date().toISOString(),
-      stats: {
-        possession: { home: 50, away: 50 },
-        shots: { home: 0, away: 0 },
-        shotsOnTarget: { home: 0, away: 0 },
-        corners: { home: 0, away: 0 },
-        fouls: { home: 0, away: 0 },
-        yellowCards: { home: 0, away: 0 },
-        redCards: { home: 0, away: 0 },
-        expectedGoals: { home: 0.0, away: 0.0 },
-        passAccuracy: { home: 85, away: 85 },
-        dangerousAttacks: { home: 0, away: 0 },
-      },
-      timeline: [],
-      momentum: { state: 'Balanced', score: 0 },
-    });
-  }
+  private aiGeneratedFor: Set<string> = new Set();
+  private finishedAiDone: Set<string> = new Set();
 
   startPolling() {
     if (this.isPolling) return;
     this.isPolling = true;
     logger.info('Started polling MatchEngine');
-
-    this.pollingInterval = setInterval(async () => {
-      await this.tick();
-    }, 10000); // Poll every 10 seconds
+    this.tick().catch((e) => logger.error('Initial tick failed', { error: e.message }));
+    this.pollingInterval = setInterval(() => this.tick(), 30_000);
   }
 
   stopPolling() {
     this.isPolling = false;
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-    }
+    if (this.pollingInterval) clearInterval(this.pollingInterval);
     logger.info('Stopped polling MatchEngine');
   }
 
@@ -65,59 +41,203 @@ export class MatchEngine {
     return Array.from(this.matches.values());
   }
 
+  getLiveMatches(): MatchState[] {
+    return this.getAllMatches().filter((m) => LIVE_STATUSES.includes(m.status));
+  }
+
+  getUpcomingMatches(): MatchState[] {
+    return this.getAllMatches().filter((m) => m.status === 'NOT_STARTED');
+  }
+
+  getRecentMatches(): MatchState[] {
+    return this.getAllMatches().filter((m) => FINISHED_STATUSES.includes(m.status));
+  }
+
   private async tick() {
     try {
-      // In a real scenario, we fetch live matches from TxLINE
-      // const liveData = await txLineClient.getLiveMatches();
-      // this.updateMatches(liveData);
+      const competitionId = env.TXLINE_WC_COMPETITION_ID
+        ? parseInt(env.TXLINE_WC_COMPETITION_ID, 10)
+        : undefined;
 
-      // Simulate a tick for the mock match
-      const mockMatch = this.matches.get('mock-1');
-      if (mockMatch && mockMatch.status === 'FIRST_HALF') {
-        mockMatch.minute += 1;
-        
-        // Randomly simulate an event
-        if (Math.random() > 0.8) {
-          const isHome = Math.random() > 0.5;
-          const team = isHome ? 'HOME' : 'AWAY';
-          mockMatch.timeline.push({
-            id: Date.now().toString(),
-            minute: mockMatch.minute,
-            type: 'SHOT',
-            title: 'Shot',
-            description: 'A shot was taken',
-            team,
-            timestamp: new Date().toISOString()
-          } as any);
+      const fixtures = await txLineClient.getFixtures(competitionId);
+      logger.info(`Fetched ${fixtures.length} fixtures from TxLINE`);
 
-          if (isHome) mockMatch.stats.shots.home++;
-          else mockMatch.stats.shots.away++;
+      await Promise.allSettled(
+        fixtures.map((fixture) => this.syncFixture(fixture))
+      );
+    } catch (err: any) {
+      logger.error('MatchEngine tick failed', { error: err.message });
+    }
+  }
 
-          // Recalculate momentum
-          mockMatch.momentum = MomentumEngine.calculateMomentum(mockMatch.stats, mockMatch.timeline);
-          socketService.broadcastToMatch(mockMatch.id, 'momentum_updated', mockMatch.momentum);
-          socketService.broadcastToMatch(mockMatch.id, 'stats_updated', mockMatch.stats);
-          socketService.broadcastToMatch(mockMatch.id, 'timeline_updated', mockMatch.timeline);
+  private async syncFixture(fixture: TxFixture) {
+    const id = String(fixture.FixtureId);
+    try {
+      const prevStatus = this.matches.get(id)?.status;
+      const isKnownFinished = prevStatus && FINISHED_STATUSES.includes(prevStatus);
 
-          // Update AI pulse periodically
-          if (mockMatch.minute % 5 === 0) {
-            mockMatch.pulse = await AIService.generateMatchPulse(mockMatch);
-            socketService.broadcastToMatch(mockMatch.id, 'pulse_updated', mockMatch.pulse);
-
-            mockMatch.recap = await AIService.generateMatchRecap(mockMatch);
-            socketService.broadcastToMatch(mockMatch.id, 'recap_updated', mockMatch.recap);
-          }
+      // For finished matches: skip re-polling score events but still run
+      // AI turning points if not done yet
+      if (isKnownFinished) {
+        if (!this.finishedAiDone.has(id)) {
+          const match = this.matches.get(id)!;
+          await this.generateFinishedMatchAI(match);
         }
-        
-        socketService.broadcastToMatch(mockMatch.id, 'score_updated', {
-          score: mockMatch.score,
-          minute: mockMatch.minute,
-          status: mockMatch.status
+        return;
+      }
+
+      let events: import('../txline/TxLineClient').TxScoreEvent[];
+      try {
+        events = await txLineClient.getScoresSnapshot(fixture.FixtureId);
+      } catch {
+        events = [];
+      }
+
+      const prev = this.matches.get(id);
+      const next = MatchNormalizer.normalize(fixture, events);
+
+      // Always compute win probability from our model
+      next.winProbability = AIService.calculateWinProbability(next);
+
+      this.matches.set(id, next);
+
+      if (!prev) return;
+
+      this.broadcastDiffs(prev, next);
+
+      if (LIVE_STATUSES.includes(next.status)) {
+        await this.maybeGenerateAI(next, prev);
+      }
+
+      // Match just finished — run finishing AI
+      if (!FINISHED_STATUSES.includes(prev.status) && FINISHED_STATUSES.includes(next.status)) {
+        await this.generateFinishedMatchAI(next);
+      }
+    } catch (err: any) {
+      logger.error(`Failed to sync fixture ${id}`, { error: err.message });
+    }
+  }
+
+  private broadcastDiffs(prev: MatchState, next: MatchState) {
+    const id = next.id;
+
+    // Score / minute changed
+    if (
+      prev.score.home !== next.score.home ||
+      prev.score.away !== next.score.away ||
+      prev.minute !== next.minute
+    ) {
+      socketService.broadcast('scoreUpdated', {
+        matchId: id,
+        homeScore: next.score.home,
+        awayScore: next.score.away,
+        minute: next.minute,
+      });
+    }
+
+    // Stats changed
+    if (JSON.stringify(prev.stats) !== JSON.stringify(next.stats)) {
+      socketService.broadcast('statsUpdated', { matchId: id, stats: this.mapStats(next) });
+    }
+
+    // New timeline events
+    const prevIds = new Set(prev.timeline.map((e) => e.id));
+    const newEvents = next.timeline.filter((e) => !prevIds.has(e.id));
+    for (const event of newEvents) {
+      socketService.broadcast('timelineUpdated', { matchId: id, event });
+    }
+
+    // Momentum changed
+    if (prev.momentum.score !== next.momentum.score) {
+      socketService.broadcast('momentumUpdated', { matchId: id, momentum: next.momentum.score });
+    }
+
+    // Win probability changed
+    if (JSON.stringify(prev.winProbability) !== JSON.stringify(next.winProbability)) {
+      socketService.broadcast('winProbabilityUpdated', {
+        matchId: id,
+        winProbability: [
+          next.winProbability!.home,
+          next.winProbability!.draw,
+          next.winProbability!.away,
+        ],
+      });
+    }
+
+    // Match finished
+    if (!FINISHED_STATUSES.includes(prev.status) && FINISHED_STATUSES.includes(next.status)) {
+      socketService.broadcast('matchFinished', {
+        matchId: id,
+        homeScore: next.score.home,
+        awayScore: next.score.away,
+        turningPoints: next.turningPoints ?? [],
+      });
+    }
+  }
+
+  private async maybeGenerateAI(match: MatchState, prev: MatchState) {
+    const scoreChanged =
+      prev.score.home !== match.score.home || prev.score.away !== match.score.away;
+    const periodicUpdate = match.minute > 0 && match.minute % 5 === 0;
+    const key = `${match.id}-${match.minute}`;
+
+    if (!scoreChanged && !periodicUpdate) return;
+    if (this.aiGeneratedFor.has(key)) return;
+    this.aiGeneratedFor.add(key);
+
+    try {
+      const [pulse, recap] = await Promise.all([
+        AIService.generateMatchPulse(match),
+        AIService.generateMatchRecap(match),
+      ]);
+
+      if (pulse) {
+        match.pulse = pulse;
+        match.recap = recap;
+        this.matches.set(match.id, match);
+
+        socketService.broadcast('matchPulseUpdated', {
+          matchId: match.id,
+          pulse: [pulse],
+          headline: pulse.split('. ')[0] ?? pulse,
         });
       }
-    } catch (error: any) {
-      logger.error('Error during MatchEngine tick', { error: error.message });
+    } catch (err: any) {
+      logger.error(`Live AI generation failed for ${match.id}`, { error: err.message });
     }
+  }
+
+  private async generateFinishedMatchAI(match: MatchState) {
+    if (this.finishedAiDone.has(match.id)) return;
+    this.finishedAiDone.add(match.id);
+
+    try {
+      const [pulse, recap, turningPoints] = await Promise.all([
+        AIService.generateMatchPulse(match),
+        AIService.generateMatchRecap(match),
+        AIService.generateTurningPoints(match),
+      ]);
+
+      match.pulse = pulse || match.pulse;
+      match.recap = recap || match.recap;
+      match.turningPoints = turningPoints.length > 0 ? turningPoints : match.turningPoints;
+      this.matches.set(match.id, match);
+
+      logger.info(`Finished match AI done for ${match.id}: ${turningPoints.length} turning points`);
+    } catch (err: any) {
+      logger.error(`Finished AI generation failed for ${match.id}`, { error: err.message });
+    }
+  }
+
+  mapStats(m: MatchState) {
+    return {
+      possession:     [m.stats.possession.home,     m.stats.possession.away],
+      shots:          [m.stats.shots.home,           m.stats.shots.away],
+      shotsOnTarget:  [m.stats.shotsOnTarget.home,   m.stats.shotsOnTarget.away],
+      corners:        [m.stats.corners.home,         m.stats.corners.away],
+      fouls:          [m.stats.fouls.home,           m.stats.fouls.away],
+      xg:             [m.stats.expectedGoals.home,   m.stats.expectedGoals.away],
+    };
   }
 }
 

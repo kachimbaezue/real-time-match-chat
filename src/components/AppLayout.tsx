@@ -10,7 +10,8 @@ import {
   SidebarLeft01Icon,
   Cancel01Icon,
 } from "hugeicons-react";
-import { matches, type Match } from "@/lib/matches";
+import { type Match } from "@/lib/matches";
+import { fetchHomeMatches } from "@/lib/api";
 import { Flag } from "@/components/Flag";
 
 const NAV = [
@@ -24,10 +25,28 @@ const OPEN_W  = 220;
 const CLOSE_W = 56;
 
 /* ── Search modal ──────────────────────────────────────────────────────────── */
-function searchMatches(query: string): Match[] {
+// Simple in-memory cache so we don't re-fetch on every keypress
+let _cachedMatches: Match[] | null = null;
+
+async function loadAllMatches(): Promise<Match[]> {
+  if (_cachedMatches) return _cachedMatches;
+  try {
+    const data = await fetchHomeMatches();
+    _cachedMatches = [
+      ...(data?.live ?? []),
+      ...(data?.upcoming ?? []),
+      ...(data?.recent ?? []),
+    ];
+    return _cachedMatches;
+  } catch {
+    return [];
+  }
+}
+
+function filterMatches(all: Match[], query: string): Match[] {
   if (!query.trim()) return [];
   const q = query.toLowerCase().trim();
-  return matches.filter((m) =>
+  return all.filter((m) =>
     m.home.name.toLowerCase().includes(q) ||
     m.away.name.toLowerCase().includes(q) ||
     m.home.short.toLowerCase().includes(q) ||
@@ -57,9 +76,15 @@ function StatusBadge({ status, minute }: { status: string; minute?: number }) {
 
 function SearchModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");
+  const [allMatches, setAllMatches] = useState<Match[]>(_cachedMatches ?? []);
   const inputRef = useRef<HTMLInputElement>(null);
-  const results = searchMatches(query);
+  const results = filterMatches(allMatches, query);
   const hasQuery = query.trim().length > 0;
+
+  // Pre-load match list when modal opens
+  useEffect(() => {
+    loadAllMatches().then((m) => setAllMatches(m));
+  }, []);
 
   useEffect(() => {
     // Focus input immediately

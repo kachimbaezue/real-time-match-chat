@@ -3,80 +3,237 @@ import { env } from '../config/env';
 import { MatchState } from '../types';
 import { logger } from '../utils/logger';
 
-const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-});
+/**
+ * AI Service — uses Groq (free, fast) as primary provider.
+ * Falls back to OpenAI gpt-4o-mini if OPENAI_API_KEY is set.
+ * Falls back to rule-based generation if neither key is available.
+ *
+ * Set GROQ_API_KEY in backend/.env for free AI.
+ * Get a free key at: https://console.groq.com
+ */
+
+// Groq client (OpenAI-compatible API, free tier)
+const groq = env.GROQ_API_KEY
+  ? new OpenAI({
+      apiKey: env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+  : null;
+
+// OpenAI client (fallback)
+const openai = env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: env.OPENAI_API_KEY })
+  : null;
+
+const client = groq ?? openai;
+const MODEL = groq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini';
+
+async function chat(prompt: string, maxTokens: number): Promise<string> {
+  if (!client) return '';
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: maxTokens,
+    temperature: 0.6,
+  });
+  return response.choices[0].message?.content?.trim() ?? '';
+}
 
 export class AIService {
   /**
-   * Generates a "Match Pulse" - a concise narrative of the current match momentum.
-   * Max 3 short paragraphs. No markdown.
+   * Match Pulse — 1-3 sentence narrative of the live state of play.
+   * Used for the "Match Pulse" card and headline.
    */
-  static async generateMatchPulse(matchState: MatchState): Promise<string> {
+  static async generateMatchPulse(match: MatchState): Promise<string> {
+    // Rule-based fallback when no AI key is set
+    if (!client) return AIService.ruleBasedPulse(match);
+
     try {
-      const prompt = `
-You are a live football commentator providing a "Match Pulse" update.
-Current Match: ${matchState.homeTeam} ${matchState.score.home} - ${matchState.score.away} ${matchState.awayTeam} (Minute: ${matchState.minute})
-Momentum: ${matchState.momentum.state}
-Possession: ${matchState.stats.possession.home}% - ${matchState.stats.possession.away}%
-Recent events count: ${matchState.timeline.slice(-5).length}
+      const recentEvents = match.timeline
+        .slice(0, 6)
+        .map((e) => `${e.minute}' ${e.title}${e.player ? ` (${e.player})` : ''}`)
+        .join(', ');
 
-Write a concise narrative of the current match momentum.
-Requirements:
-- Maximum 3 short paragraphs.
-- Never invent facts. Base statements on the provided data.
-- Natural language.
-- No markdown.
-`;
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
-        temperature: 0.7,
-      });
+      const prompt = `You are a football match analyst writing a "Match Pulse" — a concise, factual summary of the current state of play for a live app.
 
-      return response.choices[0].message?.content?.trim() || 'Awaiting match pulse...';
-    } catch (error: any) {
-      logger.error('Error generating Match Pulse', { error: error.message });
-      return 'Unable to generate match pulse at this moment.';
+Match: ${match.homeTeam} ${match.score.home}–${match.score.away} ${match.awayTeam}
+Minute: ${match.minute}'
+Status: ${match.status}
+Momentum: ${match.momentum.state} (score: ${match.momentum.score}/100, positive = home team)
+Possession: ${match.homeTeam} ${match.stats.possession.home}% — ${match.awayTeam} ${match.stats.possession.away}%
+Shots: ${match.homeTeam} ${match.stats.shots.home} (${match.stats.shotsOnTarget.home} on target) — ${match.awayTeam} ${match.stats.shots.away} (${match.stats.shotsOnTarget.away} on target)
+xG: ${match.stats.expectedGoals.home.toFixed(1)} — ${match.stats.expectedGoals.away.toFixed(1)}
+Corners: ${match.stats.corners.home} — ${match.stats.corners.away}
+Recent events: ${recentEvents || 'None yet'}
+
+Write exactly 1-2 sentences. Factual, present tense, no markdown, no invented information. Focus on what is most significant right now.`;
+
+      return await chat(prompt, 120);
+    } catch (err: any) {
+      logger.error('AI generateMatchPulse failed', { error: err.message });
+      return AIService.ruleBasedPulse(match);
     }
   }
 
   /**
-   * Generates "If You Joined Now" - an instant recap of the match.
-   * Keep under 120 words. Should read like a commentator summarizing the match.
+   * "If You Joined Now" recap — catch-up summary under 100 words.
    */
-  static async generateMatchRecap(matchState: MatchState): Promise<string> {
+  static async generateMatchRecap(match: MatchState): Promise<string> {
+    if (!client) return AIService.ruleBasedRecap(match);
+
     try {
-      const timelineSummary = matchState.timeline
-        .filter(e => ['GOAL', 'RED_CARD', 'PENALTY'].includes(e.type))
-        .map(e => `Min ${e.minute}: ${e.type} by ${e.team}`)
-        .join(', ');
+      const keyEvents = match.timeline
+        .filter((e) => ['GOAL', 'RED_CARD', 'PENALTY'].includes(e.type))
+        .map((e) => `${e.minute}': ${e.title}${e.player ? ` – ${e.player}` : ''} (${e.team === 'HOME' ? match.homeTeam : match.awayTeam})`)
+        .join('; ');
 
-      const prompt = `
-You are a live football commentator summarizing the match for someone who just joined.
-Match: ${matchState.homeTeam} ${matchState.score.home} - ${matchState.score.away} ${matchState.awayTeam} (Minute: ${matchState.minute})
-Key Events: ${timelineSummary || 'No major events yet.'}
-Stats: Shots (${matchState.stats.shots.home} - ${matchState.stats.shots.away})
+      const prompt = `You are a football commentator. A viewer just tuned into this match. Write them a quick catch-up.
 
-Generate an instant recap.
-Requirements:
-- Reads like a commentator summarizing the match.
-- Keep under 120 words.
-- Never invent facts.
-- No markdown.
-`;
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
-        temperature: 0.7,
-      });
+Match: ${match.homeTeam} ${match.score.home}–${match.score.away} ${match.awayTeam} (${match.minute}')
+Key events: ${keyEvents || 'No major events yet.'}
+Shots: ${match.homeTeam} ${match.stats.shots.home} — ${match.awayTeam} ${match.stats.shots.away}
+Possession: ${match.homeTeam} ${match.stats.possession.home}% — ${match.awayTeam} ${match.stats.possession.away}%
 
-      return response.choices[0].message?.content?.trim() || 'Awaiting match recap...';
-    } catch (error: any) {
-      logger.error('Error generating Match Recap', { error: error.message });
-      return 'Unable to generate recap at this moment.';
+Write under 100 words. No bullet points or markdown. Factual only. Tell them the story of the match so far.`;
+
+      return await chat(prompt, 150);
+    } catch (err: any) {
+      logger.error('AI generateMatchRecap failed', { error: err.message });
+      return AIService.ruleBasedRecap(match);
     }
+  }
+
+  /**
+   * Win probability — returns { home, draw, away } percentages that sum to 100.
+   * Combines statistical model with AI reasoning for live matches.
+   * For finished matches, sets the winner to ~95%.
+   */
+  static calculateWinProbability(match: MatchState): { home: number; draw: number; away: number } {
+    // Finished match — reflect the result
+    if (match.status === 'FINISHED') {
+      if (match.score.home > match.score.away) return { home: 93, draw: 5, away: 2 };
+      if (match.score.away > match.score.home) return { home: 2, draw: 5, away: 93 };
+      return { home: 10, draw: 80, away: 10 }; // draw
+    }
+
+    // Not started — equal probability
+    if (match.status === 'NOT_STARTED') return { home: 40, draw: 25, away: 35 };
+
+    // Live match — statistical model
+    let homeAdv = 0;
+
+    // Score differential is the biggest factor
+    const scoreDiff = match.score.home - match.score.away;
+    homeAdv += scoreDiff * 22;
+
+    // Momentum
+    homeAdv += match.momentum.score * 0.18;
+
+    // xG differential
+    const xgDiff = match.stats.expectedGoals.home - match.stats.expectedGoals.away;
+    homeAdv += xgDiff * 8;
+
+    // Shots on target
+    const sotDiff = match.stats.shotsOnTarget.home - match.stats.shotsOnTarget.away;
+    homeAdv += sotDiff * 2;
+
+    // Time remaining factor — leads are more secure late in the game
+    const minuteWeight = Math.min(match.minute / 90, 1);
+    homeAdv *= (0.5 + 0.5 * minuteWeight);
+
+    // Red card penalty
+    const homeReds = match.timeline.filter(e => e.type === 'RED_CARD' && e.team === 'HOME').length;
+    const awayReds = match.timeline.filter(e => e.type === 'RED_CARD' && e.team === 'AWAY').length;
+    homeAdv -= homeReds * 20;
+    homeAdv += awayReds * 20;
+
+    // Base probabilities centered around 40/25/35 (slight home advantage)
+    let home = 40 + homeAdv;
+    let away = 35 - homeAdv;
+    let draw = 25;
+
+    // Clamp
+    home = Math.max(2, Math.min(95, home));
+    away = Math.max(2, Math.min(95, away));
+    draw = Math.max(2, Math.min(50, draw));
+
+    // Normalize to 100
+    const total = home + draw + away;
+    home = Math.round((home / total) * 100);
+    away = Math.round((away / total) * 100);
+    draw = 100 - home - away;
+
+    return { home, draw, away };
+  }
+
+  /**
+   * Turning points for finished matches.
+   */
+  static async generateTurningPoints(match: MatchState): Promise<string[]> {
+    if (!client) return AIService.ruleBasedTurningPoints(match);
+
+    try {
+      const events = match.timeline
+        .filter((e) => ['GOAL', 'RED_CARD', 'PENALTY'].includes(e.type))
+        .sort((a, b) => a.minute - b.minute)
+        .map((e) => `${e.minute}': ${e.title}${e.player ? ` (${e.player})` : ''} — ${e.team === 'HOME' ? match.homeTeam : match.awayTeam}`)
+        .join('\n');
+
+      if (!events) return [];
+
+      const prompt = `You are a football analyst. This match just finished: ${match.homeTeam} ${match.score.home}–${match.score.away} ${match.awayTeam}.
+
+Key events:
+${events}
+
+Write exactly 2-3 "turning points" — the moments that decided the match. Each turning point is 1 sentence. No markdown, no numbering, no bullets. Return each on a new line.`;
+
+      const text = await chat(prompt, 200);
+      return text.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 3);
+    } catch (err: any) {
+      logger.error('AI generateTurningPoints failed', { error: err.message });
+      return AIService.ruleBasedTurningPoints(match);
+    }
+  }
+
+  // ── Rule-based fallbacks (no API key needed) ────────────────────────────
+
+  static ruleBasedPulse(match: MatchState): string {
+    const { homeTeam, awayTeam, score, minute, momentum, stats } = match;
+    const leading = score.home > score.away ? homeTeam : score.away > score.home ? awayTeam : null;
+    const dominant = momentum.score > 20 ? homeTeam : momentum.score < -20 ? awayTeam : null;
+
+    if (!leading && !dominant) {
+      return `${homeTeam} and ${awayTeam} are evenly matched at ${minute}'.`;
+    }
+    if (leading && dominant === leading) {
+      return `${leading} are in control, leading ${score.home}–${score.away} and dominating possession at ${minute}'.`;
+    }
+    if (leading && dominant && dominant !== leading) {
+      return `${leading} lead ${score.home}–${score.away} but ${dominant} are pushing hard for an equaliser.`;
+    }
+    if (!leading && dominant) {
+      return `${dominant} are pushing hard with ${stats.shots.home > stats.shots.away ? score.home : score.away} shots but the scores remain level at ${minute}'.`;
+    }
+    return `${homeTeam} ${score.home}–${score.away} ${awayTeam} at ${minute}'.`;
+  }
+
+  static ruleBasedRecap(match: MatchState): string {
+    const goals = match.timeline.filter(e => e.type === 'GOAL');
+    if (goals.length === 0) {
+      return `No goals yet. ${match.homeTeam} and ${match.awayTeam} are level at ${match.score.home}–${match.score.away} after ${match.minute} minutes.`;
+    }
+    const summaries = goals.map(g =>
+      `${g.minute}' ${g.team === 'HOME' ? match.homeTeam : match.awayTeam}${g.player ? ` (${g.player})` : ''}`
+    );
+    return `Goals: ${summaries.join(', ')}. Score: ${match.homeTeam} ${match.score.home}–${match.score.away} ${match.awayTeam}.`;
+  }
+
+  static ruleBasedTurningPoints(match: MatchState): string[] {
+    return match.timeline
+      .filter(e => ['GOAL', 'RED_CARD'].includes(e.type))
+      .sort((a, b) => a.minute - b.minute)
+      .slice(0, 3)
+      .map(e => `${e.minute}': ${e.title} — ${e.team === 'HOME' ? match.homeTeam : match.awayTeam}.`);
   }
 }

@@ -49,4 +49,5 @@ export interface MatchState {
   pulse?: string;
   recap?: string;
   winProbability?: { home: number; draw: number; away: number };
+  turningPoints?: string[];
 }

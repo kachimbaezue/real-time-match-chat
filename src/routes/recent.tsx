@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { TopBar } from "@/components/AppLayout";
-import { getRecentMatches, type Match } from "@/lib/matches";
+import { type Match } from "@/lib/matches";
+import { fetchHomeMatches } from "@/lib/api";
 import { Flag } from "@/components/Flag";
 import {
   ArrowRight01Icon,
@@ -9,13 +10,13 @@ import {
   Location01Icon,
   PlayCircle02Icon,
 } from "hugeicons-react";
-import { SectionSkeleton, RecentCardSkeleton } from "@/components/SkeletonLoader";
+import { RecentCardSkeleton } from "@/components/SkeletonLoader";
 
 export const Route = createFileRoute("/recent")({
   head: () => ({
     meta: [
       { title: "Recent — Pulse" },
-      { name: "description", content: "Recently finished FIFA World Cup 2026 matches." },
+      { name: "description", content: "Recently finished football matches." },
     ],
   }),
   component: RecentPage,
@@ -26,11 +27,15 @@ function RecentPage() {
   const [recent, setRecent] = useState<Match[]>([]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setRecent(getRecentMatches());
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    fetchHomeMatches()
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.recent)) setRecent(data.recent);
+      })
+      .catch(() => {/* backend unavailable — stay empty */})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   return (
