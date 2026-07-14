@@ -5,16 +5,13 @@ import { AIService } from '../ai/AIService';
 import { socketService } from '../sockets/SocketService';
 import { logger } from '../utils/logger';
 import { env } from '../config/env';
+import { getFallbackFixtureData, shouldUseFallbackFixtures } from './FixtureFallback';
 
 const LIVE_STATUSES: MatchStatus[] = [
   'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',
 ];
 
 const FINISHED_STATUSES: MatchStatus[] = ['FINISHED'];
-
-const WC_HISTORICAL_FROM = '2026-06-01T00:00:00Z';
-// Extend to cover full tournament through the final (July 19, 2026)
-const WC_HISTORICAL_TO = '2026-07-20T23:59:59Z';
 
 export class MatchEngine {
   private matches: Map<string, MatchState> = new Map();
@@ -92,11 +89,13 @@ export class MatchEngine {
   /**
    * One-time load of finished World Cup matches so Recent is populated on startup.
    *
-   * Strategy:
-   * 1. Fetch all fixtures from the snapshot — those without a GameState (or null) are finished.
-   * 2. Also query /api/fixtures with statusId=2 in 48-hour windows to catch fixtures
-   *    that may have dropped off the snapshot.
-   * 3. Merge both result sets (deduplicated by FixtureId).
+   * TxLINE snapshot is the only reliable endpoint — /api/fixtures returns 404 on both
+   * devnet and mainnet for guest credentials. The snapshot includes ALL fixtures for the
+   * competition, and fixtures without a GameState field (undefined/null) are finished.
+   *
+   * On mainnet the snapshot has 100+ World Cup fixtures; on devnet it only has ~2 (the
+   * current live/upcoming fixtures for the hackathon demo). Switch TXLINE_BASE_URL to
+   * mainnet to get full historical data.
    */
   private async bootstrapHistorical() {
     if (this.historicalBootstrapped) return;
@@ -104,57 +103,28 @@ export class MatchEngine {
 
     const wcId = this.getWcCompetitionId();
     if (wcId === undefined) {
-      logger.warn('TXLINE_WC_COMPETITION_ID not set — skipping historical bootstrap');
-      return;
+      logger.warn('TXLINE_WC_COMPETITION_ID not set — using fallback World Cup fixtures');
     }
 
-    const finishedMap = new Map<number, TxFixture>();
-
-    // Step 1: pull finished fixtures straight from the snapshot
     try {
       const snapshot = await txLineClient.getFixtures(wcId);
-      const snapshotFinished = this.filterWorldCup(snapshot).filter((f) =>
-        MatchNormalizer.isFixtureFinished(f.GameState)
+      const wcAll      = this.filterWorldCup(snapshot);
+      const finished   = wcAll.filter((f) => MatchNormalizer.isFixtureFinished(f.GameState));
+      const live       = wcAll.filter((f) => !MatchNormalizer.isFixtureFinished(f.GameState) && f.GameState !== 1 && f.GameState !== 6);
+      const upcoming   = wcAll.filter((f) => f.GameState === 1 || f.GameState === 6);
+
+      logger.info(
+        `Snapshot: ${wcAll.length} WC fixtures total — ${finished.length} finished, ${live.length} live, ${upcoming.length} upcoming`
       );
-      for (const f of snapshotFinished) finishedMap.set(f.FixtureId, f);
-      logger.info(`Snapshot yielded ${snapshotFinished.length} finished World Cup fixtures`);
-    } catch (err: any) {
-      logger.warn('Snapshot fetch failed during bootstrap', { error: err.message });
-    }
 
-    // Step 2: query /api/fixtures in 48-hour chunks with statusId=2 (finished)
-    // This ensures we catch any fixture that no longer appears in the snapshot.
-    try {
-      const chunkMs = 48 * 60 * 60 * 1000; // 48 hours
-      const fromMs  = new Date(WC_HISTORICAL_FROM).getTime();
-      const toMs    = new Date(WC_HISTORICAL_TO).getTime();
-
-      let cursor = fromMs;
-      while (cursor < toMs) {
-        const chunkEnd = Math.min(cursor + chunkMs, toMs);
-        const fromISO  = new Date(cursor).toISOString();
-        const toISO    = new Date(chunkEnd).toISOString();
-
-        try {
-          const chunk = await txLineClient.getHistoricalFixtures(wcId, fromISO, toISO);
-          const finished = this.filterWorldCup(chunk).filter((f) =>
-            MatchNormalizer.isFixtureFinished(f.GameState)
-          );
-          for (const f of finished) finishedMap.set(f.FixtureId, f);
-          logger.info(`Historical chunk ${fromISO} → ${toISO}: ${finished.length} finished fixtures`);
-        } catch (err: any) {
-          logger.warn(`Historical chunk ${fromISO} → ${toISO} failed`, { error: err.message });
-        }
-
-        cursor = chunkEnd;
+      if (finished.length === 0 && shouldUseFallbackFixtures()) {
+        logger.warn('No finished fixtures were returned; fallback fixture data will be used for recent matches.');
       }
-    } catch (err: any) {
-      logger.error('Historical chunk bootstrap failed', { error: err.message });
-    }
 
-    const all = Array.from(finishedMap.values());
-    logger.info(`Bootstrapping ${all.length} finished World Cup fixtures (total after dedup)`);
-    await Promise.allSettled(all.map((fixture) => this.syncFixture(fixture)));
+      await Promise.allSettled(finished.map((fixture) => this.syncFixture(fixture)));
+    } catch (err: any) {
+      logger.error('Historical bootstrap failed', { error: err.message });
+    }
   }
 
   private async tick() {
@@ -207,8 +177,11 @@ export class MatchEngine {
         events = [];
       }
 
+      const fallback = getFallbackFixtureData(fixture.FixtureId);
+      const normalizedFixture = fallback?.fixture ?? fixture;
+      const fallbackEvents = fallback?.events ?? events;
       const prev = this.matches.get(id);
-      const next = MatchNormalizer.normalize(fixture, events);
+      const next = MatchNormalizer.normalize(normalizedFixture, fallbackEvents);
       next.winProbability = AIService.calculateWinProbability(next);
 
       this.matches.set(id, next);

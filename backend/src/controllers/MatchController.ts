@@ -26,7 +26,7 @@ const TEAM_SHORT: Record<string, string> = {
   'Nigeria': 'NGA', 'Egypt': 'EGY', 'Algeria': 'ALG', 'Ivory Coast': 'CIV',
   "Côte d'Ivoire": 'CIV', 'South Africa': 'RSA', 'Zambia': 'ZAM',
   'DR Congo': 'COD', 'Mali': 'MLI', 'Mozambique': 'MOZ',
-  'New Zealand': 'NZL', 'Australia': 'AUS',
+  'New Zealand': 'NZL',
 };
 
 function toShortCode(teamName: string): string {

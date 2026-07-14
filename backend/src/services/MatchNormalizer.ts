@@ -125,7 +125,7 @@ export class MatchNormalizer {
       status,
       competition: fixture.Competition ?? 'FIFA World Cup 2026',
       venue: fixture.Venue ?? '',
-      kickoffTime: fixture.StartTime,
+      kickoffTime: String(fixture.StartTime ?? ''),
       stats,
       timeline,
       momentum,

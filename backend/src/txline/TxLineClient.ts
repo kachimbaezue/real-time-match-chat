@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { getFallbackFixtures, shouldUseFallbackFixtures } from '../services/FixtureFallback';
 
 /**
  * TxLINE API client.
@@ -38,41 +39,21 @@ export class TxLineClient {
    * GET /api/fixtures/snapshot
    * Returns all fixtures the subscription covers.
    * GameState=1 → scheduled, GameState=6 → cancelled.
+   * No GameState (undefined/null) → finished.
    */
   async getFixtures(competitionId?: number): Promise<TxFixture[]> {
-    const params: Record<string, unknown> = {};
-    if (competitionId !== undefined) params.competitionId = competitionId;
-    const res = await this.client.get<TxFixture[]>('/api/fixtures/snapshot', { params });
-    return this.asFixtureArray(res.data);
-  }
-
-  /**
-   * Fetch historical fixtures for a given competition and date window.
-   * Uses GET /fixtures with statusId=2 (Finished) as the primary path.
-   * Falls back to GET /fixtures/snapshot if the dated endpoint fails.
-   */
-  async getHistoricalFixtures(
-    competitionId: number,
-    from: string,
-    to: string,
-  ): Promise<TxFixture[]> {
-    // Primary: /api/fixtures with date range and statusId=2 (Finished)
     try {
-      const res = await this.client.get<unknown>('/api/fixtures', {
-        params: { competitionId, from, to, statusId: 2 },
-      });
-      const fixtures = this.asFixtureArray(res.data);
-      // Return even if empty — caller decides whether to also try snapshot
-      return fixtures;
-    } catch {
-      // Fall through to snapshot fallback
+      const params: Record<string, unknown> = {};
+      if (competitionId !== undefined) params.competitionId = competitionId;
+      const res = await this.client.get<TxFixture[]>('/api/fixtures/snapshot', { params });
+      return this.asFixtureArray(res.data);
+    } catch (err) {
+      if (shouldUseFallbackFixtures()) {
+        logger.warn('TxLINE fixtures lookup failed, using built-in 2026 fallback fixtures');
+        return getFallbackFixtures(competitionId);
+      }
+      throw err;
     }
-
-    // Fallback: pull the snapshot and let the caller filter by GameState
-    const res = await this.client.get<unknown>('/api/fixtures/snapshot', {
-      params: { competitionId },
-    });
-    return this.asFixtureArray(res.data);
   }
 
   private asFixtureArray(data: unknown): TxFixture[] {
@@ -100,8 +81,16 @@ export class TxLineClient {
    * Returns the full sequence of score events for a given fixture.
    */
   async getScoresSnapshot(fixtureId: number): Promise<TxScoreEvent[]> {
-    const res = await this.client.get<TxScoreEvent[]>(`/api/scores/snapshot/${fixtureId}`);
-    return this.asScoreArray(res.data);
+    try {
+      const res = await this.client.get<TxScoreEvent[]>(`/api/scores/snapshot/${fixtureId}`);
+      return this.asScoreArray(res.data);
+    } catch (err) {
+      if (shouldUseFallbackFixtures()) {
+        logger.warn(`TxLINE score snapshot failed for fixture ${fixtureId}, using fallback event data`);
+        return [];
+      }
+      throw err;
+    }
   }
 
   /**
@@ -118,8 +107,16 @@ export class TxLineClient {
    * Returns completed fixture score history (fixtures 6h–2 weeks old).
    */
   async getHistoricalScores(fixtureId: number): Promise<TxScoreEvent[]> {
-    const res = await this.client.get<TxScoreEvent[]>(`/api/scores/historical/${fixtureId}`);
-    return this.asScoreArray(res.data);
+    try {
+      const res = await this.client.get<TxScoreEvent[]>(`/api/scores/historical/${fixtureId}`);
+      return this.asScoreArray(res.data);
+    } catch (err) {
+      if (shouldUseFallbackFixtures()) {
+        logger.warn(`TxLINE historical scores failed for fixture ${fixtureId}, using fallback event data`);
+        return [];
+      }
+      throw err;
+    }
   }
 
   /**
