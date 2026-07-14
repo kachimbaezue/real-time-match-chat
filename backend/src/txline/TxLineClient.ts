@@ -43,7 +43,56 @@ export class TxLineClient {
     const params: Record<string, unknown> = {};
     if (competitionId !== undefined) params.competitionId = competitionId;
     const res = await this.client.get<TxFixture[]>('/api/fixtures/snapshot', { params });
-    return res.data;
+    return this.asFixtureArray(res.data);
+  }
+
+  /**
+   * Fetch historical fixtures for a given competition and date window.
+   * Uses GET /fixtures with statusId=2 (Finished) as the primary path.
+   * Falls back to GET /fixtures/snapshot if the dated endpoint fails.
+   */
+  async getHistoricalFixtures(
+    competitionId: number,
+    from: string,
+    to: string,
+  ): Promise<TxFixture[]> {
+    // Primary: /api/fixtures with date range and statusId=2 (Finished)
+    try {
+      const res = await this.client.get<unknown>('/api/fixtures', {
+        params: { competitionId, from, to, statusId: 2 },
+      });
+      const fixtures = this.asFixtureArray(res.data);
+      // Return even if empty — caller decides whether to also try snapshot
+      return fixtures;
+    } catch {
+      // Fall through to snapshot fallback
+    }
+
+    // Fallback: pull the snapshot and let the caller filter by GameState
+    const res = await this.client.get<unknown>('/api/fixtures/snapshot', {
+      params: { competitionId },
+    });
+    return this.asFixtureArray(res.data);
+  }
+
+  private asFixtureArray(data: unknown): TxFixture[] {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      if (Array.isArray(obj.fixtures)) return obj.fixtures as TxFixture[];
+      if (Array.isArray(obj.data)) return obj.data as TxFixture[];
+    }
+    return [];
+  }
+
+  private asScoreArray(data: unknown): TxScoreEvent[] {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      if (Array.isArray(obj.events)) return obj.events as TxScoreEvent[];
+      if (Array.isArray(obj.data)) return obj.data as TxScoreEvent[];
+    }
+    return [];
   }
 
   /**
@@ -52,7 +101,7 @@ export class TxLineClient {
    */
   async getScoresSnapshot(fixtureId: number): Promise<TxScoreEvent[]> {
     const res = await this.client.get<TxScoreEvent[]>(`/api/scores/snapshot/${fixtureId}`);
-    return res.data;
+    return this.asScoreArray(res.data);
   }
 
   /**
@@ -61,7 +110,7 @@ export class TxLineClient {
    */
   async getScoresUpdates(fixtureId: number): Promise<TxScoreEvent[]> {
     const res = await this.client.get<TxScoreEvent[]>(`/api/scores/updates/${fixtureId}`);
-    return res.data;
+    return this.asScoreArray(res.data);
   }
 
   /**
@@ -70,7 +119,7 @@ export class TxLineClient {
    */
   async getHistoricalScores(fixtureId: number): Promise<TxScoreEvent[]> {
     const res = await this.client.get<TxScoreEvent[]>(`/api/scores/historical/${fixtureId}`);
-    return res.data;
+    return this.asScoreArray(res.data);
   }
 
   /**
@@ -89,13 +138,14 @@ export class TxLineClient {
 /** A fixture from /api/fixtures/snapshot */
 export interface TxFixture {
   FixtureId: number;
-  StartTime: string;           // ISO-8601
+  StartTime: string | number;      // ISO-8601 or ms timestamp
   Competition: string;
   CompetitionId: number;
+  FixtureGroupId?: number;
   Participant1: string;        // team name
   Participant2: string;        // team name
   Participant1IsHome: boolean;
-  GameState?: number;          // 1=scheduled, 6=cancelled
+  GameState?: number | null;   // 1=scheduled, 2=H1, 3=HT, 4=H2, 5=F, null=finished, 6=cancelled
   Venue?: string;
   Stage?: string;
 }

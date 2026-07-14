@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: pulse-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: TXLINE_BASE_URL
+        sync: false
+      - key: TXLINE_JWT
+        sync: false
+      - key: TXLINE_API_KEY
+        sync: false
+      - key: TXLINE_WC_COMPETITION_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+    healthCheckPath: /health

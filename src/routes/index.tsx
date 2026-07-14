@@ -335,7 +335,7 @@ export function MatchCard({ match }: { match: Match }) {
     <Link
       to="/match/$id"
       params={{ id: match.id }}
-      className="group block rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-foreground/25"
+      className="group block rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-foreground/25 press"
     >
       <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         <span className="truncate">{match.stage}</span>

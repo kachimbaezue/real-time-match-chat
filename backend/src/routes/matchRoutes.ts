@@ -4,6 +4,7 @@ import { MatchController } from '../controllers/MatchController';
 const router = Router();
 
 router.get('/live', MatchController.getLiveMatches);
+router.get('/debug/snapshot', MatchController.debugSnapshot);
 router.get('/:id', MatchController.getMatchById);
 router.get('/:id/timeline', MatchController.getMatchTimeline);
 router.get('/:id/stats', MatchController.getMatchStats);

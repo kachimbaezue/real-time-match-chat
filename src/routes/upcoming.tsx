@@ -73,7 +73,7 @@ function UpcomingCard({ match }: { match: Match }) {
     <Link
       to="/match/$id"
       params={{ id: match.id }}
-      className="group block rounded-xl border border-border bg-card p-4 hover:border-foreground/25 transition-colors"
+      className="group block rounded-xl border border-border bg-card p-4 hover:border-foreground/25 transition-colors press"
     >
       <div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground">
         <span className="font-semibold text-foreground">{match.kickoff}</span>

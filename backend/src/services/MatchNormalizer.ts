@@ -7,8 +7,31 @@ import { MomentumEngine } from './MomentumEngine';
  */
 export class MatchNormalizer {
   /**
-   * Map TxLINE gameState string to our MatchStatus enum.
-   * TxLINE phase codes: NS=1, H1=2, HT=3, H2=4, F=5, ET1=7, HTET=8, ET2=9, FET=10, WPE=11, PE=12, FPE=13
+   * Map TxLINE fixture-level GameState to our MatchStatus.
+   * Fixture GameState uses the same phase codes as score events:
+   * null/undefined = finished, 1 = scheduled, 6 = cancelled
+   * 2=H1, 3=HT, 4=H2, 5=F, 7=ET1, 8=HTET, 9=ET2, 10=FET, 11=WPE, 12=PE, 13=FPE
+   */
+  static fixtureGameStateToStatus(gameState?: number | null): MatchStatus {
+    if (gameState === undefined || gameState === null) return 'FINISHED';
+    if (gameState === 6) return 'NOT_STARTED';
+    if (gameState === 1) return 'NOT_STARTED';
+    return this.gameStateToStatus(gameState);
+  }
+
+  /**
+   * True when the fixture-level GameState indicates the match is over.
+   * GameState absent (undefined/null) = fixture has ended (TxLINE convention).
+   * GameState 5 = Full Time, 10 = FET (After Extra Time), 13 = FPE (After Penalties).
+   */
+  static isFixtureFinished(gameState?: number | null): boolean {
+    if (gameState === undefined || gameState === null) return true;
+    return [5, 10, 13].includes(gameState);
+  }
+
+  /**
+   * Map TxLINE score event gameState string to our MatchStatus enum.
+   * TxLINE phase codes: H1=2, HT=3, H2=4, F=5, ET1=7, HTET=8, ET2=9, FET=10, WPE=11, PE=12, FPE=13
    */
   static gameStateToStatus(gameState?: string | number): MatchStatus {
     const g = String(gameState ?? '').toUpperCase();
@@ -55,9 +78,17 @@ export class MatchNormalizer {
     const homeTeam = homeIsP1 ? fixture.Participant1 : fixture.Participant2;
     const awayTeam = homeIsP1 ? fixture.Participant2 : fixture.Participant1;
 
-    // Determine current game state from the last event that has one
+    // Determine status: use score events if present, else fall back to fixture-level GameState
     const lastStateEvent = [...events].reverse().find((e) => e.gameState);
-    const status = this.gameStateToStatus(lastStateEvent?.gameState);
+    let status: MatchStatus;
+    if (lastStateEvent) {
+      status = this.gameStateToStatus(lastStateEvent.gameState);
+    } else {
+      // No score events — use fixture GameState field
+      // null/undefined GameState on a fixture = past match (finished)
+      // GameState=1 = scheduled (upcoming)
+      status = this.fixtureGameStateToStatus(fixture.GameState);
+    }
 
     // Current minute from the last event that has one
     const lastMinuteEvent = [...events].reverse().find((e) => e.minute !== undefined);
