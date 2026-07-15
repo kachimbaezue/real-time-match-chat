@@ -7,6 +7,9 @@ import { Flag } from "@/components/Flag";
 import { MomentumBar } from "@/routes/index";
 import { SectionSkeleton } from "@/components/SkeletonLoader";
 import { ArrowRight01Icon } from "hugeicons-react";
+import { FootballIcon } from "hugeicons-react"; 
+
+
 
 export const Route = createFileRoute("/live")({
   head: () => ({
@@ -50,7 +53,10 @@ function LivePage() {
             </p>
             {live.length === 0 ? (
               <div className="mt-8 flex flex-col items-center gap-3 py-12 text-center">
-                <div className="text-[32px]">⚽</div>
+                <div className="text-[32px]">
+                   <FootballIcon size={32} strokeWidth={1.5} className="text-muted-foreground" />
+
+                </div>
                 <p className="text-[14px] font-medium text-foreground">No live matches right now</p>
                 <p className="text-[13px] text-muted-foreground">
                   Check back when the next match kicks off.
