@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { getFallbackFixtures, shouldUseFallbackFixtures } from '../services/FixtureFallback';
 
 /**
  * TxLINE API client.
@@ -38,12 +39,41 @@ export class TxLineClient {
    * GET /api/fixtures/snapshot
    * Returns all fixtures the subscription covers.
    * GameState=1 → scheduled, GameState=6 → cancelled.
+   * No GameState (undefined/null) → finished.
    */
   async getFixtures(competitionId?: number): Promise<TxFixture[]> {
-    const params: Record<string, unknown> = {};
-    if (competitionId !== undefined) params.competitionId = competitionId;
-    const res = await this.client.get<TxFixture[]>('/api/fixtures/snapshot', { params });
-    return res.data;
+    try {
+      const params: Record<string, unknown> = {};
+      if (competitionId !== undefined) params.competitionId = competitionId;
+      const res = await this.client.get<TxFixture[]>('/api/fixtures/snapshot', { params });
+      return this.asFixtureArray(res.data);
+    } catch (err) {
+      if (shouldUseFallbackFixtures()) {
+        logger.warn('TxLINE fixtures lookup failed, using built-in 2026 fallback fixtures');
+        return getFallbackFixtures(competitionId);
+      }
+      throw err;
+    }
+  }
+
+  private asFixtureArray(data: unknown): TxFixture[] {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      if (Array.isArray(obj.fixtures)) return obj.fixtures as TxFixture[];
+      if (Array.isArray(obj.data)) return obj.data as TxFixture[];
+    }
+    return [];
+  }
+
+  private asScoreArray(data: unknown): TxScoreEvent[] {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      if (Array.isArray(obj.events)) return obj.events as TxScoreEvent[];
+      if (Array.isArray(obj.data)) return obj.data as TxScoreEvent[];
+    }
+    return [];
   }
 
   /**
@@ -51,8 +81,16 @@ export class TxLineClient {
    * Returns the full sequence of score events for a given fixture.
    */
   async getScoresSnapshot(fixtureId: number): Promise<TxScoreEvent[]> {
-    const res = await this.client.get<TxScoreEvent[]>(`/api/scores/snapshot/${fixtureId}`);
-    return res.data;
+    try {
+      const res = await this.client.get<TxScoreEvent[]>(`/api/scores/snapshot/${fixtureId}`);
+      return this.asScoreArray(res.data);
+    } catch (err) {
+      if (shouldUseFallbackFixtures()) {
+        logger.warn(`TxLINE score snapshot failed for fixture ${fixtureId}, using fallback event data`);
+        return [];
+      }
+      throw err;
+    }
   }
 
   /**
@@ -61,7 +99,7 @@ export class TxLineClient {
    */
   async getScoresUpdates(fixtureId: number): Promise<TxScoreEvent[]> {
     const res = await this.client.get<TxScoreEvent[]>(`/api/scores/updates/${fixtureId}`);
-    return res.data;
+    return this.asScoreArray(res.data);
   }
 
   /**
@@ -69,8 +107,16 @@ export class TxLineClient {
    * Returns completed fixture score history (fixtures 6h–2 weeks old).
    */
   async getHistoricalScores(fixtureId: number): Promise<TxScoreEvent[]> {
-    const res = await this.client.get<TxScoreEvent[]>(`/api/scores/historical/${fixtureId}`);
-    return res.data;
+    try {
+      const res = await this.client.get<TxScoreEvent[]>(`/api/scores/historical/${fixtureId}`);
+      return this.asScoreArray(res.data);
+    } catch (err) {
+      if (shouldUseFallbackFixtures()) {
+        logger.warn(`TxLINE historical scores failed for fixture ${fixtureId}, using fallback event data`);
+        return [];
+      }
+      throw err;
+    }
   }
 
   /**
@@ -89,13 +135,14 @@ export class TxLineClient {
 /** A fixture from /api/fixtures/snapshot */
 export interface TxFixture {
   FixtureId: number;
-  StartTime: string;           // ISO-8601
+  StartTime: string | number;      // ISO-8601 or ms timestamp
   Competition: string;
   CompetitionId: number;
+  FixtureGroupId?: number;
   Participant1: string;        // team name
   Participant2: string;        // team name
   Participant1IsHome: boolean;
-  GameState?: number;          // 1=scheduled, 6=cancelled
+  GameState?: number | null;   // 1=scheduled, 2=H1, 3=HT, 4=H2, 5=F, null=finished, 6=cancelled
   Venue?: string;
   Stage?: string;
 }

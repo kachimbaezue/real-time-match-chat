@@ -6,7 +6,7 @@ dotenv.config();
 const envSchema = z.object({
   PORT: z.string().default('3001'),
   // TxLINE guest JWT (from /auth/guest/start) — required to call the API
-  TXLINE_JWT: z.string().min(1, 'TXLINE_JWT is required'),
+  TXLINE_JWT: z.string().optional().default(''),
   // TxLINE activated API token — required once you complete the on-chain subscription
   TXLINE_API_KEY: z.string().default(''),
   TXLINE_BASE_URL: z.string().url().default('https://txline.txodds.com'),
@@ -31,4 +31,8 @@ export const env = _env.data;
 // but TxLINE calls will 401 until the subscription is activated.
 if (!env.TXLINE_API_KEY) {
   console.warn('⚠️  TXLINE_API_KEY is not set. TxLINE requests will fail until the on-chain subscription is activated.');
+}
+
+if (!env.TXLINE_JWT) {
+  console.warn('⚠️  TXLINE_JWT is not set. The backend will fall back to built-in 2026 fixtures if TxLINE auth fails.');
 }

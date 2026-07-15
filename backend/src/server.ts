@@ -11,8 +11,31 @@ import { matchEngine } from './services/MatchEngine';
 const app = express();
 const httpServer = createServer(app);
 
+// Allowed origins: local dev + any Vercel deployment
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4173',
+  // Vercel preview & production — match anything under vercel.app or a custom domain
+];
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow same-origin (e.g. SSR), localhost, and any *.vercel.app
+    if (
+      !origin ||
+      origin.includes('localhost') ||
+      origin.includes('vercel.app') ||
+      ALLOWED_ORIGINS.includes(origin)
+    ) {
+      cb(null, true);
+    } else {
+      cb(null, true); // open for now — tighten once domain is known
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Request logging middleware

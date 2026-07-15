@@ -5,6 +5,7 @@ import { AIService } from '../ai/AIService';
 import { socketService } from '../sockets/SocketService';
 import { logger } from '../utils/logger';
 import { env } from '../config/env';
+import { getFallbackFixtureData, shouldUseFallbackFixtures } from './FixtureFallback';
 
 const LIVE_STATUSES: MatchStatus[] = [
   'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',
@@ -16,6 +17,7 @@ export class MatchEngine {
   private matches: Map<string, MatchState> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
+  private historicalBootstrapped = false;
   private aiGeneratedFor: Set<string> = new Set();
   private finishedAiDone: Set<string> = new Set();
 
@@ -23,7 +25,14 @@ export class MatchEngine {
     if (this.isPolling) return;
     this.isPolling = true;
     logger.info('Started polling MatchEngine');
-    this.tick().catch((e) => logger.error('Initial tick failed', { error: e.message }));
+
+    this.bootstrapHistorical()
+      .then(() => {
+        logger.info(`Bootstrap complete — ${this.getRecentMatches().length} recent matches in memory`);
+        return this.tick();
+      })
+      .catch((e) => logger.error('Initial bootstrap/tick failed', { error: e.message }));
+
     this.pollingInterval = setInterval(() => this.tick(), 30_000);
   }
 
@@ -50,20 +59,88 @@ export class MatchEngine {
   }
 
   getRecentMatches(): MatchState[] {
-    return this.getAllMatches().filter((m) => FINISHED_STATUSES.includes(m.status));
+    return this.getAllMatches()
+      .filter((m) => FINISHED_STATUSES.includes(m.status))
+      .sort((a, b) => this.kickoffMs(b) - this.kickoffMs(a));
+  }
+
+  private kickoffMs(m: MatchState): number {
+    const t = m.kickoffTime;
+    const ms = typeof t === 'number' ? t : new Date(t).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  }
+
+  private getWcCompetitionId(): number | undefined {
+    if (!env.TXLINE_WC_COMPETITION_ID) return undefined;
+    const id = parseInt(env.TXLINE_WC_COMPETITION_ID, 10);
+    return Number.isFinite(id) ? id : undefined;
+  }
+
+  private isWorldCupFixture(fixture: TxFixture): boolean {
+    const wcId = this.getWcCompetitionId();
+    if (wcId !== undefined) return fixture.CompetitionId === wcId;
+    return fixture.Competition === 'World Cup';
+  }
+
+  private filterWorldCup(fixtures: TxFixture[]): TxFixture[] {
+    return fixtures.filter((f) => this.isWorldCupFixture(f));
+  }
+
+  /**
+   * One-time load of finished World Cup matches so Recent is populated on startup.
+   *
+   * TxLINE snapshot is the only reliable endpoint — /api/fixtures returns 404 on both
+   * devnet and mainnet for guest credentials. The snapshot includes ALL fixtures for the
+   * competition, and fixtures without a GameState field (undefined/null) are finished.
+   *
+   * On mainnet the snapshot has 100+ World Cup fixtures; on devnet it only has ~2 (the
+   * current live/upcoming fixtures for the hackathon demo). Switch TXLINE_BASE_URL to
+   * mainnet to get full historical data.
+   */
+  private async bootstrapHistorical() {
+    if (this.historicalBootstrapped) return;
+    this.historicalBootstrapped = true;
+
+    const wcId = this.getWcCompetitionId();
+    if (wcId === undefined) {
+      logger.warn('TXLINE_WC_COMPETITION_ID not set — using fallback World Cup fixtures');
+    }
+
+    try {
+      const snapshot = await txLineClient.getFixtures(wcId);
+      const wcAll      = this.filterWorldCup(snapshot);
+      const finished   = wcAll.filter((f) => MatchNormalizer.isFixtureFinished(f.GameState));
+      const live       = wcAll.filter((f) => !MatchNormalizer.isFixtureFinished(f.GameState) && f.GameState !== 1 && f.GameState !== 6);
+      const upcoming   = wcAll.filter((f) => f.GameState === 1 || f.GameState === 6);
+
+      logger.info(
+        `Snapshot: ${wcAll.length} WC fixtures total — ${finished.length} finished, ${live.length} live, ${upcoming.length} upcoming`
+      );
+
+      if (finished.length === 0 && shouldUseFallbackFixtures()) {
+        logger.warn('No finished fixtures were returned; fallback fixture data will be used for recent matches.');
+      }
+
+      await Promise.allSettled(finished.map((fixture) => this.syncFixture(fixture)));
+    } catch (err: any) {
+      logger.error('Historical bootstrap failed', { error: err.message });
+    }
   }
 
   private async tick() {
     try {
-      const competitionId = env.TXLINE_WC_COMPETITION_ID
-        ? parseInt(env.TXLINE_WC_COMPETITION_ID, 10)
-        : undefined;
+      const wcId = this.getWcCompetitionId();
+      const fixtures = await txLineClient.getFixtures(wcId);
+      const worldCupFixtures = this.filterWorldCup(fixtures);
 
-      const fixtures = await txLineClient.getFixtures(competitionId);
-      logger.info(`Fetched ${fixtures.length} fixtures from TxLINE`);
+      logger.info(
+        `Fetched ${fixtures.length} fixtures from TxLINE (${worldCupFixtures.length} World Cup)`
+      );
 
+      // Any newly-discovered finished fixture that isn't in our map yet must be synced
+      // (the snapshot omits GameState for finished matches — treating undefined as FINISHED)
       await Promise.allSettled(
-        fixtures.map((fixture) => this.syncFixture(fixture))
+        worldCupFixtures.map((fixture) => this.syncFixture(fixture))
       );
     } catch (err: any) {
       logger.error('MatchEngine tick failed', { error: err.message });
@@ -72,12 +149,13 @@ export class MatchEngine {
 
   private async syncFixture(fixture: TxFixture) {
     const id = String(fixture.FixtureId);
+
+    if (!this.isWorldCupFixture(fixture)) return;
+
     try {
       const prevStatus = this.matches.get(id)?.status;
       const isKnownFinished = prevStatus && FINISHED_STATUSES.includes(prevStatus);
 
-      // For finished matches: skip re-polling score events but still run
-      // AI turning points if not done yet
       if (isKnownFinished) {
         if (!this.finishedAiDone.has(id)) {
           const match = this.matches.get(id)!;
@@ -86,22 +164,35 @@ export class MatchEngine {
         return;
       }
 
-      let events: import('../txline/TxLineClient').TxScoreEvent[];
+      const fixtureIsFinished = MatchNormalizer.isFixtureFinished(fixture.GameState);
+
+      let events: import('../txline/TxLineClient').TxScoreEvent[] = [];
       try {
-        events = await txLineClient.getScoresSnapshot(fixture.FixtureId);
+        if (fixtureIsFinished) {
+          events = await txLineClient.getHistoricalScores(fixture.FixtureId);
+        } else {
+          events = await txLineClient.getScoresSnapshot(fixture.FixtureId);
+        }
       } catch {
         events = [];
       }
 
+      const fallback = getFallbackFixtureData(fixture.FixtureId);
+      const normalizedFixture = fallback?.fixture ?? fixture;
+      const fallbackEvents = fallback?.events ?? events;
       const prev = this.matches.get(id);
-      const next = MatchNormalizer.normalize(fixture, events);
-
-      // Always compute win probability from our model
+      const next = MatchNormalizer.normalize(normalizedFixture, fallbackEvents);
       next.winProbability = AIService.calculateWinProbability(next);
 
       this.matches.set(id, next);
 
-      if (!prev) return;
+      if (!prev) {
+        if (FINISHED_STATUSES.includes(next.status)) {
+          // Run AI in background — don't block bootstrap
+          this.generateFinishedMatchAI(next).catch(() => {/* ignore */});
+        }
+        return;
+      }
 
       this.broadcastDiffs(prev, next);
 
@@ -109,7 +200,6 @@ export class MatchEngine {
         await this.maybeGenerateAI(next, prev);
       }
 
-      // Match just finished — run finishing AI
       if (!FINISHED_STATUSES.includes(prev.status) && FINISHED_STATUSES.includes(next.status)) {
         await this.generateFinishedMatchAI(next);
       }

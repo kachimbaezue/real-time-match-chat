@@ -26,7 +26,7 @@ const TEAM_SHORT: Record<string, string> = {
   'Nigeria': 'NGA', 'Egypt': 'EGY', 'Algeria': 'ALG', 'Ivory Coast': 'CIV',
   "Côte d'Ivoire": 'CIV', 'South Africa': 'RSA', 'Zambia': 'ZAM',
   'DR Congo': 'COD', 'Mali': 'MLI', 'Mozambique': 'MOZ',
-  'New Zealand': 'NZL', 'Australia': 'AUS',
+  'New Zealand': 'NZL',
 };
 
 function toShortCode(teamName: string): string {
@@ -160,5 +160,65 @@ export class MatchController {
     const match = matchEngine.getMatch(getId(req));
     if (!match) { res.status(404).json({ error: 'Match not found' }); return; }
     res.json({ winProbability: match.winProbability ?? { home: 33, draw: 34, away: 33 } });
+  }
+
+  /**
+   * GET /matches/debug/snapshot
+   * Exposes the raw TxLINE snapshot + engine state for debugging.
+   * Shows: total fixtures in memory, how many are finished, and the first 10 raw snapshot fixtures.
+   */
+  static async debugSnapshot(_req: Request, res: Response): Promise<void> {
+    try {
+      const { txLineClient } = await import('../txline/TxLineClient');
+      const { MatchNormalizer } = await import('../services/MatchNormalizer');
+      const { env } = await import('../config/env');
+
+      const wcId = env.TXLINE_WC_COMPETITION_ID ? parseInt(env.TXLINE_WC_COMPETITION_ID, 10) : undefined;
+      const snapshot = await txLineClient.getFixtures(wcId);
+
+      const wcFixtures = wcId
+        ? snapshot.filter((f: any) => f.CompetitionId === wcId)
+        : snapshot.filter((f: any) => f.Competition === 'World Cup');
+
+      const finished = wcFixtures.filter((f: any) => MatchNormalizer.isFixtureFinished(f.GameState));
+      const live     = wcFixtures.filter((f: any) => [2, 3, 4, 7, 8, 9, 11, 12].includes(f.GameState));
+      const upcoming = wcFixtures.filter((f: any) => f.GameState === 1);
+
+      const allInMemory  = matchEngine.getAllMatches();
+      const recentInMem  = matchEngine.getRecentMatches();
+
+      res.json({
+        engineState: {
+          total:    allInMemory.length,
+          live:     allInMemory.filter(m => ['FIRST_HALF','HALF_TIME','SECOND_HALF','EXTRA_TIME','PENALTIES'].includes(m.status)).length,
+          upcoming: allInMemory.filter(m => m.status === 'NOT_STARTED').length,
+          recent:   recentInMem.length,
+        },
+        snapshot: {
+          total:    snapshot.length,
+          wcTotal:  wcFixtures.length,
+          finished: finished.length,
+          live:     live.length,
+          upcoming: upcoming.length,
+          wcId,
+          sampleFinished: finished.slice(0, 5).map((f: any) => ({
+            FixtureId: f.FixtureId,
+            Participant1: f.Participant1,
+            Participant2: f.Participant2,
+            GameState: f.GameState,
+            StartTime: f.StartTime,
+          })),
+          sampleAll: wcFixtures.slice(0, 10).map((f: any) => ({
+            FixtureId: f.FixtureId,
+            Participant1: f.Participant1,
+            Participant2: f.Participant2,
+            GameState: f.GameState,
+            StartTime: f.StartTime,
+          })),
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   }
 }

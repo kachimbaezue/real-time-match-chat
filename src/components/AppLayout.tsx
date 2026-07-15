@@ -16,7 +16,7 @@ import { Flag } from "@/components/Flag";
 
 const NAV = [
   { to: "/",         label: "Home",     icon: Home01Icon                 },
-  { to: "/live",     label: "Live",     icon: FootballIcon, dot: true    },
+  { to: "/live",     label: "Live",     icon: FootballIcon, dot: "live"  },
   { to: "/upcoming", label: "Upcoming", icon: Calendar01Icon             },
   { to: "/recent",   label: "Recent",   icon: Clock01Icon                },
 ] as const;
@@ -101,12 +101,12 @@ function SearchModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 animate-fade-in"
       style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-border overflow-hidden shadow-2xl"
+        className="w-full max-w-2xl rounded-2xl border border-border overflow-hidden shadow-2xl animate-scale-in"
         style={{ background: "var(--panel)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -204,7 +204,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [hasLive, setHasLive] = useState(false);
   const sideW = open ? OPEN_W : CLOSE_W;
+
+  // Poll for live matches to drive the indicator dot
+  useEffect(() => {
+    let cancelled = false;
+    const check = () => {
+      fetchHomeMatches()
+        .then((data) => {
+          if (!cancelled) setHasLive(Array.isArray(data?.live) && data.live.length > 0);
+        })
+        .catch(() => {/* ignore */});
+    };
+    check();
+    const t = setInterval(check, 60_000); // re-check every minute
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--shell)" }}>
@@ -224,6 +240,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 flex flex-col gap-0.5 px-2 pt-3">
           {NAV.map(({ to, label, icon: Icon, dot }) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+            const showDot = dot === "live" ? hasLive : false;
             return (
               <Link
                 key={to}
@@ -231,7 +248,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 title={!open ? label : undefined}
                 className={[
                   "group flex items-center gap-3 rounded-md px-2.5 py-2.5 text-[13px] font-medium",
-                  "transition-colors duration-100 select-none",
+                  "transition-colors duration-100 select-none press",
                   active
                     ? "bg-white/10 text-foreground"
                     : "text-muted-foreground hover:bg-white/8 hover:text-foreground",
@@ -239,11 +256,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
               >
                 <span className="relative shrink-0 flex h-5 w-5 items-center justify-center">
                   <Icon size={17} strokeWidth={active ? 2 : 1.6} />
-                  {dot && (
+                  {showDot && (
                     <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
                   )}
                 </span>
-                {open && <span className="whitespace-nowrap">{label}</span>}
+                {open && <span className="whitespace-nowrap animate-slide-in-left">{label}</span>}
               </Link>
             );
           })}
@@ -289,7 +306,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             onClick={() => setOpen(v => !v)}
             title={open ? "Collapse" : "Expand"}
             aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
-            className="flex w-full items-center gap-3 rounded-md px-2.5 py-2.5 text-[12px] text-muted-foreground hover:bg-white/8 hover:text-foreground transition-colors"
+            className="flex w-full items-center gap-3 rounded-md px-2.5 py-2.5 text-[12px] text-muted-foreground hover:bg-white/8 hover:text-foreground transition-colors press"
           >
             <span className="shrink-0 flex h-5 w-5 items-center justify-center">
               <SidebarLeft01Icon size={16} strokeWidth={1.75} />
@@ -313,7 +330,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             className="h-full rounded-xl overflow-hidden"
             style={{ background: "var(--surface)" }}
           >
-            <main className="h-full overflow-y-auto overflow-x-hidden pb-20 lg:pb-6">
+            <main className="h-full overflow-y-auto overflow-x-hidden pb-20 lg:pb-6 animate-page-enter">
               {children}
             </main>
           </div>
@@ -328,13 +345,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-around px-2 py-2">
           {NAV.map(({ to, label, icon: Icon, dot }) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+            const showDot = dot === "live" ? hasLive : false;
             return (
               <Link
                 key={to}
                 to={to}
                 className={[
                   "relative flex flex-1 flex-col items-center gap-0.5 rounded-md py-2",
-                  "text-[9px] font-semibold uppercase tracking-[0.1em] transition-colors",
+                  "text-[9px] font-semibold uppercase tracking-[0.1em] transition-colors press",
                   active ? "text-foreground" : "text-muted-foreground",
                 ].join(" ")}
               >
@@ -343,7 +361,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 )}
                 <span className="relative">
                   <Icon size={20} strokeWidth={active ? 2 : 1.5} />
-                  {dot && (
+                  {showDot && (
                     <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
                   )}
                 </span>
@@ -388,7 +406,7 @@ export function TopBar({ title, action }: { title: string; action?: ReactNode })
           <button
             aria-label="Search"
             onClick={() => setSearchOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--color-elevated)] hover:text-foreground transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--color-elevated)] hover:text-foreground transition-colors press"
           >
             <Search01Icon size={16} strokeWidth={1.75} />
           </button>
