@@ -7,7 +7,7 @@ import {
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
 } from "hugeicons-react";
-import { type Match } from "@/lib/matches";
+import type { Match } from "@/lib/matches";
 import { fetchHomeMatches } from "@/lib/api";
 import {
   onScoreUpdated,
@@ -36,25 +36,24 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const [loading, setLoading] = useState(true);
-  // Start empty — real data only from backend
+  // Initialize with empty arrays, load data from API
   const [live, setLive] = useState<Match[]>([]);
   const [upcoming, setUpcoming] = useState<Match[]>([]);
   const [recent, setRecent] = useState<Match[]>([]);
 
-  // Load data from real backend API
+  // Load data from the backend API.
   useEffect(() => {
     let cancelled = false;
 
     fetchHomeMatches()
       .then((data) => {
         if (cancelled) return;
-        if (Array.isArray(data?.live))     setLive(data.live);
+        // Guard against malformed API responses
+        if (Array.isArray(data?.live)) setLive(data.live);
         if (Array.isArray(data?.upcoming)) setUpcoming(data.upcoming);
-        if (Array.isArray(data?.recent))   setRecent(data.recent);
+        if (Array.isArray(data?.recent)) setRecent(data.recent);
       })
-      .catch(() => {
-        // Backend unavailable — stays empty, skeletons replaced with empty states
-      })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -335,7 +334,7 @@ export function MatchCard({ match }: { match: Match }) {
     <Link
       to="/match/$id"
       params={{ id: match.id }}
-      className="group block rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-foreground/25 press"
+      className="group block rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-foreground/25"
     >
       <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         <span className="truncate">{match.stage}</span>

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import {
@@ -17,7 +17,7 @@ import {
   StopCircleIcon,
   Location01Icon,
 } from "hugeicons-react";
-import { type Match, type TimelineEvent } from "@/lib/matches";
+import type { Match, TimelineEvent } from "@/lib/matches";
 import { fetchMatch } from "@/lib/api";
 import {
   onScoreUpdated,
@@ -37,8 +37,11 @@ import { MatchDetailSkeleton } from "@/components/SkeletonLoader";
 
 export const Route = createFileRoute("/match/$id")({
   loader: async ({ params }) => {
-    const match = await fetchMatch(params.id);
-    return match;
+    try {
+      return await fetchMatch(params.id);
+    } catch {
+      throw notFound();
+    }
   },
   head: ({ loaderData: m }) => ({
     meta: [
@@ -144,41 +147,21 @@ function MatchPage() {
         <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
           <div className="space-y-4">
             <ScoreboardCard match={match} />
-            {/* ── UPCOMING: just win probability preview ── */}
-            {match.status === "upcoming" && (
-              <WinProbabilityCard match={match} />
+            {match.pulse.length > 0 && <MatchPulseCard match={match} />}
+            {!isFinished && <WinProbabilityCard match={match} />}
+            {match.momentum !== 0 && <MomentumCard match={match} />}
+            <StatsCard match={match} />
+            {isFinished && match.turningPoints && (
+              <TurningPointsCard match={match} />
             )}
-            {/* ── LIVE ── */}
-            {match.status === "live" && (
-              <>
-                {match.pulse.length > 0 && <MatchPulseCard match={match} />}
-                <WinProbabilityCard match={match} />
-                {match.momentum !== 0 && <MomentumCard match={match} />}
-                <StatsCard match={match} />
-                {match.timeline.length > 0 && (
-                  <TimelineCard events={match.timeline} match={match} />
-                )}
-              </>
-            )}
-            {/* ── FINISHED ── */}
-            {match.status === "finished" && (
-              <>
-                {match.pulse.length > 0 && <MatchPulseCard match={match} />}
-                {match.turningPoints && match.turningPoints.length > 0 && (
-                  <TurningPointsCard match={match} />
-                )}
-                <WinProbabilityCard match={match} />
-                {match.momentum !== 0 && <MomentumCard match={match} />}
-                <StatsCard match={match} />
-                {match.timeline.length > 0 && (
-                  <TimelineCard events={match.timeline} match={match} />
-                )}
-              </>
+            {isFinished && <WinProbabilityCard match={match} />}
+            {match.timeline.length > 0 && (
+              <TimelineCard events={match.timeline} match={match} />
             )}
           </div>
           <aside className="space-y-4 lg:sticky lg:top-16 lg:h-fit">
             {match.joinedNow.length > 0 && <JoinedNowCard match={match} />}
-            {match.status !== "upcoming" && <ReplayCard match={match} />}
+            <ReplayCard match={match} />
           </aside>
         </div>
       </div>
@@ -236,7 +219,7 @@ function ScoreboardCard({ match }: { match: Match }) {
     <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 lg:p-8">
       <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FootballIcon size={14} strokeWidth={1.75} className="text-muted-foreground" />
+          <img src="/logo.png" alt="" className="h-5 w-5 object-contain opacity-80" />
           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             {match.competition}
           </span>
@@ -311,9 +294,21 @@ function MatchPulseCard({ match }: { match: Match }) {
   }, [match.pulse.length]);
 
   return (
-    <section className="rounded-2xl border border-foreground/20 bg-card p-4 lg:p-5">
+    <section
+      className="rounded-2xl border p-4 lg:p-5 relative overflow-hidden"
+      style={{
+        borderColor: "color-mix(in oklab, var(--color-border) 50%, var(--color-foreground) 25%)",
+        background: "color-mix(in oklab, var(--color-card) 85%, var(--color-foreground) 4%)",
+      }}
+    >
+      {/* Subtle background glow */}
+      <div
+        className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full opacity-10"
+        style={{ background: "radial-gradient(circle, var(--color-foreground), transparent 70%)" }}
+      />
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
             className="flex h-7 w-7 items-center justify-center rounded-lg"
@@ -450,15 +445,13 @@ function Waveform({ value }: { value: number }) {
 }
 
 function WinProbabilityCard({ match }: { match: Match }) {
-  const wp = match.winProbability ?? [33, 34, 33];
-  const [home, draw, away] = wp;
+  const [home, draw, away] = match.winProbability;
   const rows = [
     { label: `${match.home.name} win`, flagCode: match.home.short, pct: home, tone: "primary" as const },
     { label: "Draw", pct: draw, tone: "muted" as const, flagCode: undefined },
     { label: `${match.away.name} win`, flagCode: match.away.short, pct: away, tone: "accent" as const },
   ];
   const sorted = [...rows].sort((a, b) => b.pct - a.pct);
-  const label = match.status === "finished" ? "Final" : match.status === "upcoming" ? "Pre-match" : "Live model";
 
   return (
     <Card>
@@ -467,7 +460,9 @@ function WinProbabilityCard({ match }: { match: Match }) {
           <ChartLineData02Icon size={14} strokeWidth={1.75} />
           <SectionLabel>Win probability</SectionLabel>
         </div>
-        <span className="text-[10px] text-muted-foreground">{label}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {match.status === "finished" ? "Final model" : "Live model"}
+        </span>
       </div>
       <div className="mt-3 space-y-1.5">
         {sorted.map((r) => (

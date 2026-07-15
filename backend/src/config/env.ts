@@ -27,6 +27,10 @@ if (!_env.success) {
 
 export const env = _env.data;
 
+export function hasTxLineCredentials(): boolean {
+  return Boolean(env.TXLINE_JWT && env.TXLINE_API_KEY);
+}
+
 // Warn (don't crash) if the API key is missing — the server can still start
 // but TxLINE calls will 401 until the subscription is activated.
 if (!env.TXLINE_API_KEY) {
@@ -34,5 +38,5 @@ if (!env.TXLINE_API_KEY) {
 }
 
 if (!env.TXLINE_JWT) {
-  console.warn('⚠️  TXLINE_JWT is not set. The backend will fall back to built-in 2026 fixtures if TxLINE auth fails.');
+  console.warn('⚠️  TXLINE_JWT is not set. The backend cannot fetch TxLINE data until it is configured.');
 }

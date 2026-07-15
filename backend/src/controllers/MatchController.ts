@@ -72,7 +72,10 @@ function mapStatus(s: string): 'live' | 'upcoming' | 'finished' {
 
 function formatKickoff(isoOrMs: string | number): string {
   try {
-    const d = new Date(typeof isoOrMs === 'number' ? isoOrMs : isoOrMs);
+    const raw = typeof isoOrMs === 'string' && /^\d+$/.test(isoOrMs)
+      ? Number(isoOrMs)
+      : isoOrMs;
+    const d = new Date(raw);
     if (isNaN(d.getTime())) return String(isoOrMs);
     const now = new Date();
     const diffDays = Math.floor((d.getTime() - now.getTime()) / 86_400_000);

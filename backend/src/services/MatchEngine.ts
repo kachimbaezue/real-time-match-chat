@@ -4,8 +4,7 @@ import { MatchNormalizer } from './MatchNormalizer';
 import { AIService } from '../ai/AIService';
 import { socketService } from '../sockets/SocketService';
 import { logger } from '../utils/logger';
-import { env } from '../config/env';
-import { getFallbackFixtureData, shouldUseFallbackFixtures } from './FixtureFallback';
+import { env, hasTxLineCredentials } from '../config/env';
 
 const LIVE_STATUSES: MatchStatus[] = [
   'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',
@@ -23,6 +22,10 @@ export class MatchEngine {
 
   startPolling() {
     if (this.isPolling) return;
+    if (!hasTxLineCredentials()) {
+      logger.warn('TxLINE credentials are missing — MatchEngine polling is disabled until TXLINE_JWT and TXLINE_API_KEY are configured.');
+      return;
+    }
     this.isPolling = true;
     logger.info('Started polling MatchEngine');
 
@@ -79,7 +82,7 @@ export class MatchEngine {
   private isWorldCupFixture(fixture: TxFixture): boolean {
     const wcId = this.getWcCompetitionId();
     if (wcId !== undefined) return fixture.CompetitionId === wcId;
-    return fixture.Competition === 'World Cup';
+    return fixture.Competition?.includes('World Cup') ?? false;
   }
 
   private filterWorldCup(fixtures: TxFixture[]): TxFixture[] {
@@ -103,7 +106,7 @@ export class MatchEngine {
 
     const wcId = this.getWcCompetitionId();
     if (wcId === undefined) {
-      logger.warn('TXLINE_WC_COMPETITION_ID not set — using fallback World Cup fixtures');
+      logger.warn('TXLINE_WC_COMPETITION_ID not set — loading all accessible competitions and filtering for World Cup matches.');
     }
 
     try {
@@ -116,10 +119,6 @@ export class MatchEngine {
       logger.info(
         `Snapshot: ${wcAll.length} WC fixtures total — ${finished.length} finished, ${live.length} live, ${upcoming.length} upcoming`
       );
-
-      if (finished.length === 0 && shouldUseFallbackFixtures()) {
-        logger.warn('No finished fixtures were returned; fallback fixture data will be used for recent matches.');
-      }
 
       await Promise.allSettled(finished.map((fixture) => this.syncFixture(fixture)));
     } catch (err: any) {
@@ -177,11 +176,8 @@ export class MatchEngine {
         events = [];
       }
 
-      const fallback = getFallbackFixtureData(fixture.FixtureId);
-      const normalizedFixture = fallback?.fixture ?? fixture;
-      const fallbackEvents = fallback?.events ?? events;
       const prev = this.matches.get(id);
-      const next = MatchNormalizer.normalize(normalizedFixture, fallbackEvents);
+      const next = MatchNormalizer.normalize(fixture, events);
       next.winProbability = AIService.calculateWinProbability(next);
 
       this.matches.set(id, next);
