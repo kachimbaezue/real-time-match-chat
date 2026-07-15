@@ -468,7 +468,7 @@ function WinProbabilityCard({ match }: { match: Match }) {
           <SectionLabel>Win probability</SectionLabel>
         </div>
         <span className="text-[10px] text-muted-foreground">{label}</span>
-      </div>      </div>
+      </div>
       <div className="mt-3 space-y-1.5">
         {sorted.map((r) => (
           <PredictionRow key={r.label} label={r.label} flagCode={r.flagCode} percent={r.pct} tone={r.tone} />
