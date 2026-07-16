@@ -420,14 +420,33 @@ export class MatchNormalizer {
       }
     }
 
-    stats.shots.home = homeIsP1 ? p1Shots : p2Shots;
-    stats.shots.away = homeIsP1 ? p2Shots : p1Shots;
-    stats.shotsOnTarget.home = homeIsP1 ? p1ShotsOn : p2ShotsOn;
-    stats.shotsOnTarget.away = homeIsP1 ? p2ShotsOn : p1ShotsOn;
+    // Use the 3000-series stats keys from TxLINE first (more reliable)
+    if (latestStats) {
+      const p1ShotsTx = latestStats['3001'] ?? 0;
+      const p2ShotsTx = latestStats['3002'] ?? 0;
+      const p1ShotsOnTx = latestStats['3003'] ?? 0;
+      const p2ShotsOnTx = latestStats['3004'] ?? 0;
+      const p1FoulsTx = latestStats['3007'] ?? 0;
+      const p2FoulsTx = latestStats['3008'] ?? 0;
+
+      stats.shots.home = homeIsP1 ? p1ShotsTx : p2ShotsTx;
+      stats.shots.away = homeIsP1 ? p2ShotsTx : p1ShotsTx;
+      stats.shotsOnTarget.home = homeIsP1 ? p1ShotsOnTx : p2ShotsOnTx;
+      stats.shotsOnTarget.away = homeIsP1 ? p2ShotsOnTx : p1ShotsOnTx;
+      stats.fouls.home = homeIsP1 ? p1FoulsTx : p2FoulsTx;
+      stats.fouls.away = homeIsP1 ? p2FoulsTx : p1FoulsTx;
+    } else {
+      // Fall back to counting events if no 3000-series stats
+      stats.shots.home = homeIsP1 ? p1Shots : p2Shots;
+      stats.shots.away = homeIsP1 ? p2Shots : p1Shots;
+      stats.shotsOnTarget.home = homeIsP1 ? p1ShotsOn : p2ShotsOn;
+      stats.shotsOnTarget.away = homeIsP1 ? p2ShotsOn : p1ShotsOn;
+      stats.fouls.home = homeIsP1 ? p1Fouls : p2Fouls;
+      stats.fouls.away = homeIsP1 ? p2Fouls : p1Fouls;
+    }
+
     stats.dangerousAttacks.home = homeIsP1 ? p1DangerousAttacks : p2DangerousAttacks;
     stats.dangerousAttacks.away = homeIsP1 ? p2DangerousAttacks : p1DangerousAttacks;
-    stats.fouls.home = homeIsP1 ? p1Fouls : p2Fouls;
-    stats.fouls.away = homeIsP1 ? p2Fouls : p1Fouls;
 
     // Possession %: derive from last known possession holder
     // Since we only see momentary possession events (not a running %), we
@@ -437,7 +456,7 @@ export class MatchNormalizer {
               e.Possession !== undefined
     ).length;
 
-    if (totalPossessionEvents > 0) {
+    if (totalPossessionEvents > 5) { // only use if we have enough data (more than 5 events)
       const p1PossEvents = events.filter(
         (e) => (this.getAction(e) === 'possession' || this.getAction(e) === 'safe_possession') &&
                 e.Possession === 1
@@ -445,6 +464,9 @@ export class MatchNormalizer {
       const p1PossPct = Math.round((p1PossEvents / totalPossessionEvents) * 100);
       stats.possession.home = homeIsP1 ? p1PossPct : (100 - p1PossPct);
       stats.possession.away = homeIsP1 ? (100 - p1PossPct) : p1PossPct;
+    } else { // default to 50/50 if we don't have enough data
+      stats.possession.home = 50;
+      stats.possession.away = 50;
     }
 
     return stats;

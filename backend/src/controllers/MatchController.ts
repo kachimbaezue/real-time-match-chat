@@ -224,4 +224,39 @@ export class MatchController {
       res.status(500).json({ error: err.message });
     }
   }
+
+  /**
+   * GET /matches/debug/fixture/:id
+   * Shows RAW TxLINE data vs our normalized data for a specific fixture
+   */
+  static async debugFixture(req: Request, res: Response): Promise<void> {
+    try {
+      const { txLineClient } = await import('../txline/TxLineClient');
+      const { MatchNormalizer } = await import('../services/MatchNormalizer');
+      const fixtureId = parseInt(req.params.id, 10);
+
+      const rawScores = await txLineClient.getScoresSnapshot(fixtureId);
+      const rawFixture = (await txLineClient.getFixtures()).find((f: any) => f.FixtureId === fixtureId);
+
+      // Build normalized state if possible
+      let normalizedMatch = null;
+      const inMemoryMatch = matchEngine.getMatch(String(fixtureId));
+
+      if (rawFixture && rawScores.length > 0) {
+        normalizedMatch = MatchNormalizer.normalize(rawFixture, rawScores);
+      }
+
+      res.json({
+        fixtureId,
+        raw: {
+          fixture: rawFixture,
+          scores: rawScores,
+        },
+        normalizedMatch: inMemoryMatch || normalizedMatch,
+        frontendMatch: inMemoryMatch ? toFrontendMatch(inMemoryMatch) : null,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
 }
