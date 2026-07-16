@@ -285,6 +285,7 @@ function TeamName({ team, align }: { team: { name: string; short: string }; alig
 
 function MatchPulseCard({ match }: { match: Match }) {
   const [activeIdx, setActiveIdx] = useState(0);
+  const [isOpen, setIsOpen] = useState(true);
   const isFinished = match.status === "finished";
 
   useEffect(() => {
@@ -294,28 +295,13 @@ function MatchPulseCard({ match }: { match: Match }) {
   }, [match.pulse.length]);
 
   return (
-    <section
-      className="rounded-2xl border p-4 lg:p-5 relative overflow-hidden"
-      style={{
-        borderColor: "color-mix(in oklab, var(--color-border) 50%, var(--color-foreground) 25%)",
-        background: "color-mix(in oklab, var(--color-card) 85%, var(--color-foreground) 4%)",
-      }}
-    >
-      {/* Subtle background glow */}
-      <div
-        className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full opacity-10"
-        style={{ background: "radial-gradient(circle, var(--color-foreground), transparent 70%)" }}
-      />
-
+    <section className="rounded-2xl border border-white p-4 lg:p-5 bg-card">
       {/* Header */}
-      <div className="relative flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span
-            className="flex h-7 w-7 items-center justify-center rounded-lg"
-            style={{ background: "color-mix(in oklab, var(--color-foreground) 12%, transparent)" }}
-          >
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-border">
             <FootballIcon size={14} strokeWidth={1.75} className="text-foreground" />
-          </span>
+          </div>
           <span className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-foreground">
             Match Pulse
           </span>
@@ -330,54 +316,104 @@ function MatchPulseCard({ match }: { match: Match }) {
           <span className="rounded-full border border-border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             AI · {isFinished ? "final" : `${match.minute}'`}
           </span>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="ml-2 p-1 rounded-full hover:bg-border/20 transition-colors"
+          >
+            {isOpen ? (
+              <CircleIcon size={14} strokeWidth={1.75} className="text-muted-foreground" />
+            ) : (
+              <Square01Icon size={14} strokeWidth={1.75} className="text-muted-foreground" />
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Active pulse line — big + prominent */}
-      <div className="relative mt-4">
-        <p className="text-[15px] font-medium leading-relaxed text-foreground lg:text-[16px]">
-          {match.pulse[activeIdx]}
-        </p>
-      </div>
-
-      {/* Dot indicators + other lines */}
-      {match.pulse.length > 1 && (
-        <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
-          {match.pulse.map((line, i) => {
-            if (i === activeIdx) return null;
-            return (
-              <button
-                key={i}
-                onClick={() => setActiveIdx(i)}
-                className="block w-full text-left text-[12px] leading-relaxed text-muted-foreground/70 hover:text-muted-foreground transition-colors"
-              >
-                {line}
-              </button>
-            );
-          })}
-          {/* Progress dots */}
-          <div className="flex items-center gap-1.5 pt-1">
-            {match.pulse.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveIdx(i)}
-                className="transition-all duration-300"
-                aria-label={`View insight ${i + 1}`}
-              >
-                <span
-                  className="block rounded-full transition-all duration-300"
-                  style={{
-                    width: i === activeIdx ? 16 : 5,
-                    height: 5,
-                    background: i === activeIdx
-                      ? "var(--color-foreground)"
-                      : "color-mix(in oklab, var(--color-foreground) 25%, transparent)",
-                  }}
-                />
-              </button>
-            ))}
+      {isOpen && (
+        <>
+          {/* Active pulse line — big + prominent */}
+          <div className="mt-4">
+            <p className="text-[15px] font-medium leading-relaxed text-foreground lg:text-[16px]">
+              {match.pulse[activeIdx]}
+            </p>
           </div>
-        </div>
+
+          {/* Dot indicators + other lines */}
+          {match.pulse.length > 1 && (
+            <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
+              {match.pulse.map((line, i) => {
+                if (i === activeIdx) return null;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setActiveIdx(i)}
+                    className="block w-full text-left text-[12px] leading-relaxed text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+                  >
+                    {line}
+                  </button>
+                );
+              })}
+              {/* Progress dots */}
+              <div className="flex items-center gap-1.5 pt-1">
+                {match.pulse.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveIdx(i)}
+                    className="transition-all duration-300"
+                    aria-label={`View insight ${i + 1}`}
+                  >
+                    <span
+                      className="block rounded-full transition-all duration-300"
+                      style={{
+                        width: i === activeIdx ? 16 : 5,
+                        height: 5,
+                        background: i === activeIdx
+                          ? "var(--color-foreground)"
+                          : "color-mix(in oklab, var(--color-foreground) 25%, transparent)",
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Timeline toggle (if timeline exists) */}
+          {match.timeline.length > 0 && (
+            <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
+              <h4 className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-2">
+                Match Timeline
+              </h4>
+              <div className="space-y-2">
+                {match.timeline.map((event, i) => {
+                  const EventIcon = eventIcon(event.type);
+                  return (
+                    <div key={i} className="flex items-start gap-2">
+                      <div className="text-[11px] font-numeric text-muted-foreground pt-0.5 min-w-[40px]">
+                        {event.minute}'
+                      </div>
+                      <div className="flex-shrink-0 mt-0.5">
+                        <div className="flex items-center justify-center h-5 w-5 rounded-full border border-border">
+                          <EventIcon size={9} strokeWidth={2} />
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-[12px] font-medium text-foreground">
+                          {event.label}
+                        </div>
+                        {event.detail && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {event.detail}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

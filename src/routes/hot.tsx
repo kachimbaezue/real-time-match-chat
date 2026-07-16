@@ -33,20 +33,6 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
 }
 
-function typeEmoji(type: HotFeedItem["type"]): string {
-  switch (type) {
-    case "goal":       return "⚽";
-    case "red_card":   return "🟥";
-    case "yellow_card":return "🟨";
-    case "penalty":    return "🥅";
-    case "fulltime":   return "🏁";
-    case "status":     return "🔔";
-    case "insight":    return "⚡";
-    case "stat":       return "📊";
-    default:           return "📌";
-  }
-}
-
 function typeLabel(type: HotFeedItem["type"]): string {
   switch (type) {
     case "goal":       return "Goal";
@@ -85,68 +71,6 @@ function typeIcon(type: HotFeedItem["type"]) {
     case "stat":        return <ChartLineData02Icon size={13} strokeWidth={2} />;
     default:            return <span className="text-[11px]">•</span>;
   }
-}
-
-// ── WC status banner ────────────────────────────────────────────────────────
-
-function WCStatusBanner() {
-  return (
-    <div className="mb-6 rounded-2xl border border-border overflow-hidden"
-      style={{ background: "color-mix(in oklab, var(--color-card) 80%, var(--color-foreground) 6%)" }}>
-      {/* Title bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-        <div className="flex items-center gap-2">
-          <FootballIcon size={14} strokeWidth={1.75} className="text-muted-foreground" />
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-            FIFA World Cup 2026 · Status
-          </span>
-        </div>
-        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
-          102 / 104 played
-        </span>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-3 divide-x divide-border/50">
-        {[
-          { label: "Teams", val: "48" },
-          { label: "Played", val: "102" },
-          { label: "Left", val: "2" },
-        ].map(({ label, val }) => (
-          <div key={label} className="flex flex-col items-center py-3">
-            <span className="font-numeric text-[22px] font-bold text-foreground">{val}</span>
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground mt-0.5">{label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Upcoming matches */}
-      <div className="border-t border-border/60 divide-y divide-border/40">
-        <div className="flex items-center gap-3 px-4 py-2.5">
-          <span className="text-[13px]">🥉</span>
-          <div className="flex-1">
-            <p className="text-[12px] font-semibold text-foreground">3rd Place — France vs England</p>
-            <p className="text-[10px] text-muted-foreground">Jul 18 · 5:00PM ET · Hard Rock Stadium, Miami</p>
-          </div>
-          <span className="rounded-full bg-[var(--color-elevated)] px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">UPCOMING</span>
-        </div>
-        <div className="flex items-center gap-3 px-4 py-2.5">
-          <span className="text-[13px]">🏆</span>
-          <div className="flex-1">
-            <p className="text-[12px] font-semibold text-foreground">Final — Spain vs Argentina</p>
-            <p className="text-[10px] text-muted-foreground">Jul 19 · 3:00PM ET · MetLife Stadium, NJ</p>
-          </div>
-          <span className="rounded-full bg-[var(--color-elevated)] px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">UPCOMING</span>
-        </div>
-      </div>
-
-      {/* Top scorer note */}
-      <div className="border-t border-border/60 px-4 py-2.5 flex items-center gap-2">
-        <span className="text-[11px]">🥅</span>
-        <span className="text-[11px] text-muted-foreground">Top scorer: <span className="text-foreground font-medium">Lionel Messi (ARG) — 8 goals</span></span>
-      </div>
-    </div>
-  );
 }
 
 // ── Thread item (spaghetti thread style) ───────────────────────────────────
@@ -209,7 +133,7 @@ function ThreadItem({
             item.type === "stat"        ? "text-sky-400" :
             "text-muted-foreground",
           ].join(" ")}>
-            {typeEmoji(item.type)} {typeLabel(item.type)}
+            {typeLabel(item.type)}
           </span>
           {item.minute > 0 && (
             <span className="text-[10px] text-muted-foreground">{item.minute}'</span>
@@ -365,15 +289,11 @@ export default function HotPage() {
     <>
       <TopBar title="Hot" />
       <div ref={topRef} className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8">
-
-        {/* WC context banner */}
-        <WCStatusBanner />
-
         {/* Thread header + refresh */}
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="font-display text-[15px] font-bold text-foreground tracking-tight">
-              What's happening ⚡
+              What's happening
             </h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Live thread · TxLINE data · {relativeTime(lastRefresh)}
@@ -383,7 +303,7 @@ export default function HotPage() {
             onClick={() => load(true)}
             disabled={refreshing}
             aria-label="Refresh"
-            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-foreground/25 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-foreground/25 transition-colors disabled:opacity-50"
           >
             <RefreshIcon size={12} strokeWidth={1.75} className={refreshing ? "animate-spin" : ""} />
             Refresh
@@ -393,11 +313,11 @@ export default function HotPage() {
         {/* Filters */}
         <div className="mb-5 flex flex-wrap gap-2">
           <FilterPill active={filter === "all"}   label="All"     count={feed.length} onClick={() => setFilter("all")} />
-          <FilterPill active={filter === "goals"} label="⚽ Goals" count={goalCount}  onClick={() => setFilter("goals")} />
-          <FilterPill active={filter === "cards"} label="🟨 Cards" count={cardCount}  onClick={() => setFilter("cards")} />
-          <FilterPill active={filter === "ai"}    label="⚡ AI"   count={aiCount}     onClick={() => setFilter("ai")} />
+          <FilterPill active={filter === "goals"} label="Goals" count={goalCount}  onClick={() => setFilter("goals")} />
+          <FilterPill active={filter === "cards"} label="Cards" count={cardCount}  onClick={() => setFilter("cards")} />
+          <FilterPill active={filter === "ai"}    label="AI"   count={aiCount}     onClick={() => setFilter("ai")} />
           {liveCount > 0 && (
-            <FilterPill active={filter === "live"} label="🔴 Live" count={liveCount} onClick={() => setFilter("live")} />
+            <FilterPill active={filter === "live"} label="Live" count={liveCount} onClick={() => setFilter("live")} />
           )}
         </div>
 
