@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { matchEngine } from '../services/MatchEngine';
 import { AIService } from '../ai/AIService';
 import { logger } from '../utils/logger';
+import { newsAPIClient, NewsArticle } from '../services/NewsAPIClient';
 
 const router = Router();
 
@@ -9,16 +10,16 @@ const router = Router();
 
 type HotItemType =
   | 'goal' | 'yellow_card' | 'red_card' | 'penalty'
-  | 'insight' | 'stat' | 'status' | 'fulltime' | 'substitution';
+  | 'insight' | 'stat' | 'status' | 'fulltime' | 'substitution'
+  | 'news';
 
 interface HotItem {
   id: string;
   type: HotItemType;
   importance: number; // 1=low 2=medium 3=high
   text: string;
-  emoji: string;
   minute: number;
-  match: {
+  match?: {
     id: string;
     home: string;
     away: string;
@@ -28,6 +29,14 @@ interface HotItem {
     minute: number;
     competition: string;
     stage: string;
+  };
+  news?: {
+    title: string;
+    description: string | null;
+    url: string;
+    urlToImage: string | null;
+    source: string;
+    author: string | null;
   };
   ts: number;
   detail?: string;
@@ -84,7 +93,6 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
           type: ev.type.toLowerCase() as HotItemType,
           importance,
           text,
-          emoji: eventEmoji(ev.type),
           minute: ev.minute,
           match: matchCtx,
           ts: ev.timestamp ? Number(ev.timestamp) : (Date.now() - ev.minute * 60_000),
@@ -102,7 +110,6 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
           type: 'insight',
           importance: 2,
           text: pulseText,
-          emoji: '⚡',
           minute: match.minute,
           match: matchCtx,
           ts: Date.now() - 5_000,
@@ -123,7 +130,6 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
           type: 'fulltime',
           importance: 3,
           text,
-          emoji: '🏁',
           minute: 90,
           match: matchCtx,
           // Place FT just after the last timeline event
@@ -143,7 +149,6 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
             type: 'stat',
             importance: 1,
             text: `${dominant} commanding possession — ${pct}% of the ball at ${match.minute}'. The game is being played on their terms.`,
-            emoji: '📊',
             minute: match.minute,
             match: matchCtx,
             ts: Date.now() - 30_000,
@@ -159,7 +164,6 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
             type: 'stat',
             importance: 1,
             text: `${domTeam} applying serious pressure — ${shots} shots at ${match.minute}'. The xG is climbing.`,
-            emoji: '📊',
             minute: match.minute,
             match: matchCtx,
             ts: Date.now() - 45_000,
@@ -168,13 +172,38 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
       }
     }
 
+    // 5. ADD WORLD CUP NEWS FROM NEWSAPI
+    try {
+      const newsArticles = await newsAPIClient.fetchWorldCupNews();
+      for (const article of newsArticles) {
+        feed.push({
+          id: `news-${article.url}`,
+          type: 'news',
+          importance: 2,
+          text: article.title,
+          minute: 0,
+          ts: new Date(article.publishedAt).getTime(),
+          news: {
+            title: article.title,
+            description: article.description,
+            url: article.url,
+            urlToImage: article.urlToImage,
+            source: article.source.name,
+            author: article.author,
+          },
+        });
+      }
+    } catch (newsErr) {
+      logger.warn('Failed to fetch news, skipping', newsErr);
+    }
+
     // Sort: importance DESC, then ts DESC (newest first within same importance)
     feed.sort((a, b) => {
       if (b.importance !== a.importance) return b.importance - a.importance;
       return b.ts - a.ts;
     });
 
-    res.json({ feed: feed.slice(0, 60), total: feed.length });
+    res.json({ feed: feed.slice(0, 80), total: feed.length });
   } catch (err: any) {
     logger.error('Hot feed error', err);
     res.status(500).json({ error: 'Internal Server Error' });

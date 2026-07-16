@@ -32,12 +32,11 @@ export async function fetchMatch(id: string): Promise<Match> {
 }
 export interface HotFeedItem {
   id: string;
-  type: 'goal' | 'yellow_card' | 'red_card' | 'penalty' | 'insight' | 'stat' | 'status' | 'fulltime' | 'substitution' | 'corner';
+  type: 'goal' | 'yellow_card' | 'red_card' | 'penalty' | 'insight' | 'stat' | 'status' | 'fulltime' | 'substitution' | 'corner' | 'news';
   importance: number;
   text: string;
-  emoji: string;
   minute: number;
-  match: {
+  match?: {
     id: string;
     home: string;
     away: string;
@@ -47,6 +46,14 @@ export interface HotFeedItem {
     minute: number;
     competition: string;
     stage: string;
+  };
+  news?: {
+    title: string;
+    description: string | null;
+    url: string;
+    urlToImage: string | null;
+    source: string;
+    author: string | null;
   };
   ts: number;
   detail?: string;

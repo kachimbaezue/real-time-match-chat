@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import ReactDOM from "react-dom";
 import {
   Home01Icon,
@@ -9,19 +9,26 @@ import {
   Search01Icon,
   SidebarLeft01Icon,
   Cancel01Icon,
-  FlashIcon as HotIcon,
+  Activity01Icon as HotIcon,
 } from "hugeicons-react";
 import { type Match } from "@/lib/matches";
 import { fetchHomeMatches } from "@/lib/api";
 import { Flag } from "@/components/Flag";
 
-const NAV = [
+type NavItem = {
+  to: string;
+  label: string;
+  icon: React.ComponentType<any>;
+  dot?: "live" | "hot";
+};
+
+const NAV: readonly NavItem[] = [
   { to: "/",         label: "Home",     icon: Home01Icon                 },
   { to: "/live",     label: "Live",     icon: FootballIcon, dot: "live"  },
-  { to: "/hot",      label: "Hot",      icon: HotIcon,  dot: "hot" as const },
+  { to: "/hot",      label: "Hot",      icon: HotIcon,    dot: "hot"  },
   { to: "/upcoming", label: "Upcoming", icon: Calendar01Icon             },
   { to: "/recent",   label: "Recent",   icon: Clock01Icon                },
-] as const;
+];
 
 const OPEN_W  = 220;
 const CLOSE_W = 56;

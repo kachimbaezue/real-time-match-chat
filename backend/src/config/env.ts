@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+// Explicitly tell dotenv where the .env file is (in backend directory)
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const envSchema = z.object({
   PORT: z.string().default('3001'),
@@ -12,6 +14,8 @@ const envSchema = z.object({
   TXLINE_BASE_URL: z.string().url().default('https://txline.txodds.com'),
   // World Cup competition ID on TxLINE — leave empty to fetch all competitions
   TXLINE_WC_COMPETITION_ID: z.string().default(''),
+  // News API key for fetching verified World Cup news
+  NEWS_API_KEY: z.string().optional().default(''),
   // AI keys — GROQ_API_KEY is free (https://console.groq.com), OpenAI is fallback
   GROQ_API_KEY: z.string().optional().default(''),
   OPENAI_API_KEY: z.string().optional().default(''),

@@ -10,6 +10,9 @@ import {
   FlashIcon,
   Activity01Icon,
   RefreshIcon,
+  File01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
 } from "hugeicons-react";
 
 export const Route = createFileRoute("/hot")({
@@ -43,6 +46,7 @@ function typeLabel(type: HotFeedItem["type"]): string {
     case "status":     return "Update";
     case "insight":    return "AI Read";
     case "stat":       return "Stats";
+    case "news":       return "News";
     default:           return "Update";
   }
 }
@@ -56,6 +60,7 @@ function typeDotColor(type: HotFeedItem["type"]): string {
     case "fulltime":   return "bg-emerald-500";
     case "insight":    return "bg-violet-500";
     case "stat":       return "bg-sky-500";
+    case "news":       return "bg-blue-500";
     default:           return "bg-muted-foreground/40";
   }
 }
@@ -69,6 +74,7 @@ function typeIcon(type: HotFeedItem["type"]) {
     case "fulltime":    return <span className="text-[9px] font-bold">FT</span>;
     case "insight":     return <FlashIcon size={13} strokeWidth={2} />;
     case "stat":        return <ChartLineData02Icon size={13} strokeWidth={2} />;
+    case "news":        return <File01Icon size={13} strokeWidth={2} />;
     default:            return <span className="text-[11px]">•</span>;
   }
 }
@@ -85,12 +91,93 @@ function ThreadItem({
   isFirst: boolean;
 }) {
   const [timeStr, setTimeStr] = useState(() => relativeTime(item.ts));
+  const [expanded, setExpanded] = useState(false);
   const isHighImportance = item.importance >= 3;
 
   useEffect(() => {
     const t = setInterval(() => setTimeStr(relativeTime(item.ts)), 15_000);
     return () => clearInterval(t);
   }, [item.ts]);
+
+  if (item.type === "news" && item.news) {
+    const description = item.news.description;
+    const isDescriptionLong = description && description.length > 100;
+    return (
+      <div className="flex gap-3">
+        {/* Left — thread line + dot */}
+        <div className="flex flex-col items-center shrink-0" style={{ width: 28 }}>
+          {!isFirst && <div className="w-px flex-none bg-border/50" style={{ height: 12 }} />}
+          <div
+          className={[
+            "flex items-center justify-center rounded-full shrink-0 z-10",
+            isHighImportance
+              ? "h-7 w-7 border-2 border-foreground/20 text-foreground"
+              : "h-6 w-6 border border-border text-muted-foreground",
+            "bg-card",
+          ].join(" ")}
+        >
+          <File01Icon size={13} strokeWidth={2} />
+        </div>
+          {!isLast && <div className="w-px flex-1 min-h-[24px] bg-border/50" />}
+        </div>
+
+        {/* Right — card content */}
+        <div className="pb-4 flex-1 min-w-0">
+          {/* Type tag + time */}
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-blue-400">
+              NEWS
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              {item.news.source}
+            </span>
+            <span className="ml-auto text-[10px] text-muted-foreground shrink-0">{timeStr}</span>
+          </div>
+
+          {/* News content */}
+          <div>
+            {item.news.urlToImage && (
+              <div className="mb-2 rounded-xl overflow-hidden border border-border">
+                <img
+                  src={item.news.urlToImage}
+                  alt={item.news.title}
+                  className="w-full h-40 object-cover"
+                />
+              </div>
+            )}
+            <p className={[
+              "leading-relaxed text-foreground",
+              isHighImportance ? "text-[15px] font-semibold" : "text-[13px] font-medium",
+            ].join(" ")}>
+              {item.news.title}
+            </p>
+            {description && (
+              <div>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                  {expanded || !isDescriptionLong ? description : `${description.slice(0, 100)}...`}
+                </p>
+                {isDescriptionLong && (
+                  <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {expanded ? (
+                      <ArrowUp01Icon size={12} strokeWidth={2} />
+                    ) : (
+                      <ArrowDown01Icon size={12} strokeWidth={2} />
+                    )}
+                    {expanded ? "Show less" : "Show more"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!item.match) return null;
 
   return (
     <div className="flex gap-3">
@@ -119,7 +206,7 @@ function ThreadItem({
       </div>
 
       {/* Right — card content */}
-      <div className={["pb-4 flex-1 min-w-0", isLast ? "" : ""].join(" ")}>
+      <div className="pb-4 flex-1 min-w-0">
         {/* Type tag + time */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className={[
@@ -192,7 +279,7 @@ function ThreadItem({
 
 // ── Filter pill ────────────────────────────────────────────────────────────
 
-type FilterType = "all" | "goals" | "cards" | "ai" | "live";
+type FilterType = "all" | "goals" | "cards" | "ai" | "live" | "news";
 
 function FilterPill({
   active, label, count, onClick,
@@ -275,7 +362,8 @@ export default function HotPage() {
       case "goals":  return item.type === "goal" || item.type === "fulltime";
       case "cards":  return item.type === "red_card" || item.type === "yellow_card" || item.type === "penalty";
       case "ai":     return item.type === "insight" || item.type === "stat";
-      case "live":   return item.match.status === "live";
+      case "live":   return item.match?.status === "live";
+      case "news":   return item.type === "news";
       default:       return true;
     }
   });
@@ -283,7 +371,8 @@ export default function HotPage() {
   const goalCount  = feed.filter(i => i.type === "goal").length;
   const cardCount  = feed.filter(i => ["red_card","yellow_card","penalty"].includes(i.type)).length;
   const aiCount    = feed.filter(i => ["insight","stat"].includes(i.type)).length;
-  const liveCount  = feed.filter(i => i.match.status === "live").length;
+  const liveCount  = feed.filter(i => i.match?.status === "live").length;
+  const newsCount  = feed.filter(i => i.type === "news").length;
 
   return (
     <>
@@ -318,6 +407,9 @@ export default function HotPage() {
           <FilterPill active={filter === "ai"}    label="AI"   count={aiCount}     onClick={() => setFilter("ai")} />
           {liveCount > 0 && (
             <FilterPill active={filter === "live"} label="Live" count={liveCount} onClick={() => setFilter("live")} />
+          )}
+          {newsCount > 0 && (
+            <FilterPill active={filter === "news"} label="News" count={newsCount} onClick={() => setFilter("news")} />
           )}
         </div>
 
