@@ -36,28 +36,76 @@ copyDir(path.join(root, "dist", "client"), STATIC);
 // ── 3. Copy server bundle into function dir ──────────────────────────────────
 copyDir(path.join(root, "dist", "server"), FUNC_DIR);
 
-// ── 4. Write the Edge Function entry (wraps server.js fetch handler) ─────────
+// ── 4. Write the Node.js serverless function entry ───────────────────────────
 //
-//  The compiled server.js exports `export default { fetch(req) {} }`
-//  Vercel Edge Functions expect `export default { fetch(req) {} }` too — same API.
-//  We just re-export it.
+// The compiled server.js exports `export default { fetch(req) {} }` (Web Fetch API).
+// Vercel Node.js functions receive (req, res) — we bridge them here.
 //
 fs.writeFileSync(
   path.join(FUNC_DIR, "index.js"),
-  `export { default } from "./server.js";\n`
+  `
+import handler from "./server.js";
+
+export default async function vercelHandler(req, res) {
+  // Build a Web API Request from the Vercel IncomingMessage
+  const host = req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const url = new URL(req.url, \`\${proto}://\${host}\`);
+
+  const init = {
+    method: req.method,
+    headers: req.headers,
+  };
+
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    init.body = await streamToBuffer(req);
+    init.duplex = "half";
+  }
+
+  const webReq = new Request(url.toString(), init);
+  const webRes = await handler.fetch(webReq);
+
+  res.statusCode = webRes.status;
+  for (const [key, value] of webRes.headers.entries()) {
+    res.setHeader(key, value);
+  }
+
+  const body = await webRes.arrayBuffer();
+  res.end(Buffer.from(body));
+}
+
+function streamToBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (c) => chunks.push(c));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+`.trimStart()
 );
 
 // ── 5. .vc-config.json for the function ──────────────────────────────────────
+// Must use nodejs runtime — the SSR bundle imports react, socket.io-client, etc.
+// which are not available in the Edge runtime.
 fs.writeFileSync(
   path.join(FUNC_DIR, ".vc-config.json"),
   JSON.stringify(
     {
-      runtime: "edge",
-      entrypoint: "index.js",
+      runtime: "nodejs22.x",
+      handler: "index.js",
+      launcherType: "Nodejs",
+      shouldAddHelpers: true,
     },
     null,
     2
   )
+);
+
+// Mark the function dir as ESM so Node resolves `import` statements correctly
+fs.writeFileSync(
+  path.join(FUNC_DIR, "package.json"),
+  JSON.stringify({ type: "module" }, null, 2)
 );
 
 // ── 6. Top-level config.json — routes ────────────────────────────────────────
