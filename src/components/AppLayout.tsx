@@ -277,6 +277,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="shrink-0 px-3 pb-4">
           {open && (
             <div className="mb-3 space-y-1">
+              {/* Solana logo */}
+              <a
+                href="https://solana.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center rounded-lg px-1 py-2 hover:bg-white/6 transition-colors"
+                title="Solana"
+              >
+                <img
+                  src="/solana.png"
+                  alt="Solana"
+                  className="h-7 max-w-[120px] object-contain shrink-0"
+                />
+              </a>
               {/* SuperTeam logo */}
               <a
                 href="https://superteam.fun"
