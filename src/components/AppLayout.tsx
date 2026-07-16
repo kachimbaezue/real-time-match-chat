@@ -9,6 +9,7 @@ import {
   Search01Icon,
   SidebarLeft01Icon,
   Cancel01Icon,
+  FlashIcon as HotIcon,
 } from "hugeicons-react";
 import { type Match } from "@/lib/matches";
 import { fetchHomeMatches } from "@/lib/api";
@@ -17,6 +18,7 @@ import { Flag } from "@/components/Flag";
 const NAV = [
   { to: "/",         label: "Home",     icon: Home01Icon                 },
   { to: "/live",     label: "Live",     icon: FootballIcon, dot: "live"  },
+  { to: "/hot",      label: "Hot",      icon: HotIcon,  dot: "hot" as const },
   { to: "/upcoming", label: "Upcoming", icon: Calendar01Icon             },
   { to: "/recent",   label: "Recent",   icon: Clock01Icon                },
 ] as const;
@@ -240,7 +242,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 flex flex-col gap-0.5 px-2 pt-3">
           {NAV.map(({ to, label, icon: Icon, dot }) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
-            const showDot = dot === "live" ? hasLive : false;
+            const showDot = dot === "live" ? hasLive : dot === "hot" ? hasLive : false;
             return (
               <Link
                 key={to}
@@ -265,8 +267,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-
-        {/* Collabs / Sponsor logos */}
         <div className="shrink-0 px-3 pb-4">
           {open && (
             <div className="mb-3 space-y-1">
@@ -345,7 +345,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-around px-2 py-2">
           {NAV.map(({ to, label, icon: Icon, dot }) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
-            const showDot = dot === "live" ? hasLive : false;
+            const showDot = dot === "live" ? hasLive : dot === "hot" ? hasLive : false;
             return (
               <Link
                 key={to}

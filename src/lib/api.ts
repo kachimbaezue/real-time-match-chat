@@ -30,3 +30,29 @@ export async function fetchHomeMatches(): Promise<HomeMatches> {
 export async function fetchMatch(id: string): Promise<Match> {
   return get<Match>(`/matches/${id}`);
 }
+export interface HotFeedItem {
+  id: string;
+  type: 'goal' | 'yellow_card' | 'red_card' | 'penalty' | 'insight' | 'stat' | 'status' | 'fulltime' | 'substitution' | 'corner';
+  importance: number;
+  text: string;
+  emoji: string;
+  minute: number;
+  match: {
+    id: string;
+    home: string;
+    away: string;
+    homeScore: number;
+    awayScore: number;
+    status: string;
+    minute: number;
+    competition: string;
+    stage: string;
+  };
+  ts: number;
+  detail?: string;
+}
+
+export async function fetchHotFeed(): Promise<HotFeedItem[]> {
+  const data = await get<{ feed: HotFeedItem[]; total: number }>('/hot');
+  return data.feed ?? [];
+}

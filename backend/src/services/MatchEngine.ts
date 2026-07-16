@@ -6,6 +6,26 @@ import { socketService } from '../sockets/SocketService';
 import { logger } from '../utils/logger';
 import { env, hasTxLineCredentials } from '../config/env';
 
+/**
+ * Known World Cup 2026 fixture IDs that have already been played and will no
+ * longer appear in the live fixture snapshot. These must be bootstrapped
+ * directly from scores/snapshot so Recent matches show up.
+ *
+ * Add new IDs here as matches complete and drop off the TxLINE snapshot.
+ * Source: confirmed via terminal — these had game_finalised (StatusId=100) events.
+ */
+const KNOWN_WC_FINISHED_FIXTURES: Array<{
+  FixtureId: number;
+  Participant1: string;
+  Participant2: string;
+  StartTime: number;
+  Participant1IsHome: boolean;
+}> = [
+  // England vs Argentina — Semifinal — Jul 15 2026
+  // Final score: England 1 – 2 Argentina (Stats key 1=1, key 2=2)
+  { FixtureId: 18241006, Participant1: 'England', Participant2: 'Argentina', StartTime: 1784142000000, Participant1IsHome: true },
+];
+
 const LIVE_STATUSES: MatchStatus[] = [
   'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',
 ];
@@ -15,10 +35,13 @@ const FINISHED_STATUSES: MatchStatus[] = ['FINISHED'];
 export class MatchEngine {
   private matches: Map<string, MatchState> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
+  private livePollingInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
   private historicalBootstrapped = false;
   private aiGeneratedFor: Set<string> = new Set();
   private finishedAiDone: Set<string> = new Set();
+  // Track last known Seq per fixture so we can use /updates efficiently
+  private lastSeq: Map<string, number> = new Map();
 
   startPolling() {
     if (this.isPolling) return;
@@ -36,12 +59,17 @@ export class MatchEngine {
       })
       .catch((e) => logger.error('Initial bootstrap/tick failed', { error: e.message }));
 
+    // Full fixture snapshot poll every 30s (discovers new matches, phase changes)
     this.pollingInterval = setInterval(() => this.tick(), 30_000);
+
+    // Fast live-match-only poll every 10s for score/event updates
+    this.livePollingInterval = setInterval(() => this.tickLive(), 10_000);
   }
 
   stopPolling() {
     this.isPolling = false;
     if (this.pollingInterval) clearInterval(this.pollingInterval);
+    if (this.livePollingInterval) clearInterval(this.livePollingInterval);
     logger.info('Stopped polling MatchEngine');
   }
 
@@ -89,54 +117,78 @@ export class MatchEngine {
     return fixtures.filter((f) => this.isWorldCupFixture(f));
   }
 
-  /**
-   * One-time bootstrap: load all World Cup fixtures and their events.
-   *
-   * Real TxLINE behaviour:
-   * - Fixture GameState: 1=scheduled, null/undefined=finished
-   * - The fixture GameState does NOT reflect live phases (H1/H2/HT) —
-   *   that comes from score event StatusId.
-   * - For ANY fixture (scheduled or finished), getScoresSnapshot gives us
-   *   all events — including live play-by-play for currently running matches.
-   * - getHistoricalScores is for older completed fixtures (>6h ago).
-   */
   private async bootstrapHistorical() {
     if (this.historicalBootstrapped) return;
     this.historicalBootstrapped = true;
 
     const wcId = this.getWcCompetitionId();
-    if (wcId === undefined) {
-      logger.warn('TXLINE_WC_COMPETITION_ID not set — loading all fixtures and filtering for World Cup matches.');
-    }
 
     try {
-      // Try with competitionId filter first
+      // 1. Load snapshot fixtures (upcoming + live)
       let snapshot = await txLineClient.getFixtures(wcId);
       let wcAll = this.filterWorldCup(snapshot);
 
-      // If filter didn't work (devnet may ignore params), fetch all and filter
+      // If competitionId filter returned nothing useful, retry without
       if (wcAll.length < 1 && wcId !== undefined) {
-        logger.info(`No WC fixtures with competitionId filter — retrying without filter`);
         snapshot = await txLineClient.getFixtures();
         wcAll = this.filterWorldCup(snapshot);
-        logger.info(`Re-fetch: ${snapshot.length} total, ${wcAll.length} WC`);
       }
 
       const finished = wcAll.filter((f) => MatchNormalizer.isFixtureFinished(f.GameState));
-      // Scheduled fixtures (GameState=1) may actually be live — their events will tell us
-      const scheduled = wcAll.filter((f) => f.GameState === 1);
+      const live     = wcAll.filter((f) => [2,3,4,7,8,9,11,12].includes(Number(f.GameState)));
+      const upcoming = wcAll.filter((f) => f.GameState === 1);
 
       logger.info(
-        `Snapshot: ${wcAll.length} WC fixtures — ${finished.length} finished, ${scheduled.length} scheduled/live`
+        `Snapshot: ${wcAll.length} WC fixtures — ${finished.length} finished, ${live.length} live, ${upcoming.length} upcoming`
       );
 
       await Promise.allSettled([
-        ...finished.map((fixture) => this.syncFixture(fixture)),
-        ...scheduled.map((fixture) => this.syncFixture(fixture)),
+        ...finished.map((f) => this.syncFixture(f)),
+        ...live.map((f) => this.syncFixture(f)),
+        ...upcoming.map((f) => this.syncFixture(f)),
       ]);
+
+      // 2. Bootstrap known finished fixtures that dropped off the snapshot
+      await this.bootstrapKnownFinished();
     } catch (err: any) {
       logger.error('Historical bootstrap failed', { error: err.message });
     }
+  }
+
+  /**
+   * Load fixtures we know are finished but no longer appear in the snapshot.
+   * These are hardcoded because TxLINE's fixture/snapshot only returns active fixtures.
+   */
+  private async bootstrapKnownFinished() {
+    logger.info(`Bootstrapping ${KNOWN_WC_FINISHED_FIXTURES.length} known-finished WC fixtures`);
+    await Promise.allSettled(
+      KNOWN_WC_FINISHED_FIXTURES.map(async (known) => {
+        const id = String(known.FixtureId);
+        if (this.matches.has(id)) return; // already loaded
+        try {
+          const events = await txLineClient.getScoresSnapshot(known.FixtureId);
+          if (!events.length) return;
+          const fixture: TxFixture = {
+            FixtureId: known.FixtureId,
+            StartTime: known.StartTime,
+            Competition: 'FIFA World Cup 2026',
+            CompetitionId: 72,
+            Participant1: known.Participant1,
+            Participant2: known.Participant2,
+            Participant1IsHome: known.Participant1IsHome,
+            GameState: null, // let events drive — they'll show game_finalised (StatusId=100)
+          };
+          const state = MatchNormalizer.normalize(fixture, events);
+          state.winProbability = AIService.calculateWinProbability(state);
+          this.matches.set(id, state);
+          logger.info(`Bootstrapped finished fixture ${id} (${known.Participant1} vs ${known.Participant2}) — status: ${state.status} score: ${state.score.home}-${state.score.away}`);
+          // Generate AI for finished match in background
+          this.generateFinishedMatchAI(state).catch(() => {});
+        } catch (err: any) {
+          logger.error(`Failed to bootstrap known fixture ${id}`, { error: err.message });
+        }
+      })
+    );
   }
 
   private async tick() {
@@ -146,15 +198,74 @@ export class MatchEngine {
       const worldCupFixtures = this.filterWorldCup(fixtures);
 
       logger.info(
-        `Tick: ${fixtures.length} total fixtures, ${worldCupFixtures.length} WC`
+        `Fetched ${fixtures.length} fixtures from TxLINE (${worldCupFixtures.length} World Cup)`
       );
 
+      // Any newly-discovered finished fixture that isn't in our map yet must be synced
+      // (the snapshot omits GameState for finished matches — treating undefined as FINISHED)
       await Promise.allSettled(
         worldCupFixtures.map((fixture) => this.syncFixture(fixture))
       );
     } catch (err: any) {
       logger.error('MatchEngine tick failed', { error: err.message });
     }
+  }
+
+  /**
+   * Fast poll for live matches only — uses /api/scores/snapshot for the
+   * full event log, then diffs against what we have to find new events.
+   * Called every 10 seconds (vs 30s for the full fixture poll).
+   */
+  private async tickLive() {
+    const liveMatches = this.getLiveMatches();
+    if (liveMatches.length === 0) return;
+
+    logger.info(`Fast live poll for ${liveMatches.length} live match(es)`);
+
+    await Promise.allSettled(
+      liveMatches.map(async (m) => {
+        const fixtureId = parseInt(m.id, 10);
+        if (!Number.isFinite(fixtureId)) return;
+        try {
+          // Use /scores/snapshot which always returns full current state
+          const events = await txLineClient.getScoresSnapshot(fixtureId);
+          if (!events.length) return;
+
+          // Build a lightweight fixture object from what we already know
+          const fakeFixture: import('../txline/TxLineClient').TxFixture = {
+            FixtureId: fixtureId,
+            StartTime: m.kickoffTime,
+            Competition: m.competition,
+            CompetitionId: 72,
+            Participant1: m.homeTeam,
+            Participant2: m.awayTeam,
+            Participant1IsHome: true,
+            GameState: null, // let events drive the status
+          };
+
+          const prev = this.matches.get(m.id)!;
+          const next = MatchNormalizer.normalize(fakeFixture, events);
+          next.winProbability = AIService.calculateWinProbability(next);
+          // Preserve AI-generated fields
+          next.pulse = next.pulse || prev.pulse;
+          next.recap = next.recap || prev.recap;
+          next.turningPoints = next.turningPoints || prev.turningPoints;
+
+          this.matches.set(m.id, next);
+          this.broadcastDiffs(prev, next);
+
+          if (LIVE_STATUSES.includes(next.status)) {
+            await this.maybeGenerateAI(next, prev);
+          }
+
+          if (!FINISHED_STATUSES.includes(prev.status) && FINISHED_STATUSES.includes(next.status)) {
+            await this.generateFinishedMatchAI(next);
+          }
+        } catch (err: any) {
+          logger.error(`Fast live poll failed for ${m.id}`, { error: err.message });
+        }
+      })
+    );
   }
 
   private async syncFixture(fixture: TxFixture) {
@@ -176,17 +287,12 @@ export class MatchEngine {
 
       const fixtureIsFinished = MatchNormalizer.isFixtureFinished(fixture.GameState);
 
-      // Fetch events: use snapshot for live/scheduled, historical for old finished ones
       let events: import('../txline/TxLineClient').TxScoreEvent[] = [];
       try {
         if (fixtureIsFinished) {
-          // Try historical first; fall back to snapshot
           events = await txLineClient.getHistoricalScores(fixture.FixtureId);
-          if (events.length === 0) {
-            events = await txLineClient.getScoresSnapshot(fixture.FixtureId);
-          }
         } else {
-          // Scheduled fixtures may be live — snapshot has all events
+          // For both live and upcoming, use snapshot — it's the most complete
           events = await txLineClient.getScoresSnapshot(fixture.FixtureId);
         }
       } catch {
@@ -199,16 +305,10 @@ export class MatchEngine {
 
       this.matches.set(id, next);
 
-      logger.info(
-        `Synced fixture ${id} (${next.homeTeam} vs ${next.awayTeam}): status=${next.status} score=${next.score.home}-${next.score.away} minute=${next.minute}`
-      );
-
       if (!prev) {
         if (FINISHED_STATUSES.includes(next.status)) {
+          // Run AI in background — don't block bootstrap
           this.generateFinishedMatchAI(next).catch(() => {/* ignore */});
-        } else if (LIVE_STATUSES.includes(next.status)) {
-          // Kick off initial AI pulse for live matches
-          this.maybeGenerateAI(next, next).catch(() => {/* ignore */});
         }
         return;
       }
@@ -288,11 +388,9 @@ export class MatchEngine {
     const scoreChanged =
       prev.score.home !== match.score.home || prev.score.away !== match.score.away;
     const periodicUpdate = match.minute > 0 && match.minute % 5 === 0;
-    // Also generate on first encounter of a live match (prev === match means bootstrap)
-    const isFirstTime = prev === match;
     const key = `${match.id}-${match.minute}`;
 
-    if (!isFirstTime && !scoreChanged && !periodicUpdate) return;
+    if (!scoreChanged && !periodicUpdate) return;
     if (this.aiGeneratedFor.has(key)) return;
     this.aiGeneratedFor.add(key);
 
