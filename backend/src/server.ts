@@ -6,6 +6,7 @@ import { logger } from './utils/logger';
 import { socketService } from './sockets/SocketService';
 import matchRoutes from './routes/matchRoutes';
 import hotRoutes from './routes/hotRoutes';
+import aiRoutes from './routes/aiRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import { matchEngine } from './services/MatchEngine';
 
@@ -48,6 +49,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/matches', matchRoutes);
 app.use('/hot', hotRoutes);
+app.use('/ai', aiRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
