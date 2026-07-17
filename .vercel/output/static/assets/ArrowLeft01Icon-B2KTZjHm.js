@@ -1,0 +1,1 @@
+import{D as e,P as t}from"./index.min-BhwmEQnY.js";import{t as n}from"./jsx-runtime-By8HlURe.js";var r=n(),i=n=>(0,r.jsx)(t,{icon:e,...n});i.displayName=`ArrowLeft01Icon`;export{i as t};

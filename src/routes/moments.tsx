@@ -374,7 +374,7 @@ function AIWidget() {
       {/* Desktop: fixed-height floating card, gap above button */}
       {open && (
         <div
-          className="hidden lg:block fixed z-50 w-[380px] animate-scale-in"
+          className="hidden lg:block fixed z-[70] w-[380px] animate-scale-in"
           style={{
             bottom: "calc(2.5rem + 44px + 16px)",
             right: "1.5rem",
@@ -387,7 +387,7 @@ function AIWidget() {
 
       {/* Button — white bg, moderate radius, thin black ring with white gap */}
       {/* Hidden on mobile when drawer is open so it doesn't overlap */}
-      <div className={`fixed bottom-24 right-4 lg:bottom-10 lg:right-6 z-50 ${open ? "hidden lg:block" : ""}`}>
+      <div className={`fixed bottom-24 right-4 lg:bottom-10 lg:right-6 z-[70] ${open ? "hidden lg:block" : ""}`}>
         {/* Outer white halo — creates the white gap effect */}
         <div style={{ padding: 3, borderRadius: 13, background: "white", display: "inline-block" }}>
           {/* Inner black border */}

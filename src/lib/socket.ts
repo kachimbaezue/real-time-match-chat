@@ -2,8 +2,11 @@
  * Pulse Socket client
  * Singleton socket.io connection to the backend.
  * Components subscribe to match-specific events and clean up on unmount.
+ *
+ * socket.io-client is loaded lazily via dynamic import so it never executes
+ * during SSR (Node.js), which would hang the process.
  */
-import { io, type Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 import type { Match, TimelineEvent } from "@/lib/matches";
 
 const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL as string | undefined) ?? "http://localhost:3001";
@@ -11,12 +14,12 @@ const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL as string | undefined) ?? "h
 // Lazy singleton — only connects in the browser, never during SSR
 let _socket: Socket | null = null;
 
-export function getSocket(): Socket {
+export async function getSocketAsync(): Promise<Socket> {
   if (typeof window === "undefined") {
-    // SSR context — return a no-op stub so imports don't crash
     throw new Error("Socket not available on server");
   }
   if (!_socket) {
+    const { io } = await import("socket.io-client");
     _socket = io(SOCKET_URL, {
       transports: ["websocket"],
       autoConnect: true,
@@ -79,13 +82,13 @@ export interface MatchFinishedPayload {
 // the socket isn't available (e.g. server environment).
 
 function safeOn<T>(event: string, cb: (p: T) => void): () => void {
-  try {
-    const s = getSocket();
+  if (typeof window === "undefined") return () => {};
+  let unsub = () => {};
+  getSocketAsync().then((s) => {
     s.on(event, cb);
-    return () => s.off(event, cb);
-  } catch {
-    return () => {};
-  }
+    unsub = () => s.off(event, cb);
+  }).catch(() => {});
+  return () => unsub();
 }
 
 export function onScoreUpdated(cb: (p: ScoreUpdatedPayload) => void) {

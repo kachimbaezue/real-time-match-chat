@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-DUAcabCT.js";import{w as t,y as n}from"./index.min-BJv6sFYO.js";var r=e(),i=e=>(0,r.jsx)(t,{icon:n,...e});i.displayName=`ArrowLeft01Icon`;export{i as t};

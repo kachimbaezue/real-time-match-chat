@@ -38,7 +38,11 @@ import { MatchDetailSkeleton } from "@/components/SkeletonLoader";
 export const Route = createFileRoute("/match/$id")({
   loader: async ({ params }) => {
     try {
-      return await fetchMatch(params.id);
+      // Race with 4s timeout so SSR doesn't hang if Render backend is cold
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("loader timeout")), 4000)
+      );
+      return await Promise.race([fetchMatch(params.id), timeout]);
     } catch {
       throw notFound();
     }

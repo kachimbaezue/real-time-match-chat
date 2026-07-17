@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-DUAcabCT.js";import{n as t,w as n}from"./index.min-BJv6sFYO.js";var r=e(),i=e=>(0,r.jsx)(n,{icon:t,...e});i.displayName=`PlayCircle02Icon`;export{i as t};
