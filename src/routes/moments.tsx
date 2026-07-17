@@ -12,7 +12,7 @@ import {
   BookOpen01Icon,
   ArrowRight01Icon,
   SparklesIcon,
-  SendIcon,
+  SentIcon,
   Cancel01Icon,
   ArrowUp01Icon,
 } from "hugeicons-react";
@@ -496,7 +496,7 @@ function AIChatDrawer({ onClose }: { onClose: () => void }) {
               disabled={!input.trim() || loading}
               className="flex h-7 w-7 items-center justify-center rounded-xl bg-foreground text-background transition-opacity disabled:opacity-40"
             >
-              <SendIcon size={13} strokeWidth={2} />
+              <SentIcon size={13} strokeWidth={2} />
             </button>
           </form>
         </div>
