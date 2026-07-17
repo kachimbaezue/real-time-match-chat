@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DUAcabCT.js";import{c as t,w as n}from"./index.min-BJv6sFYO.js";var r=e(),i=e=>(0,r.jsx)(n,{icon:t,...e});i.displayName=`Location01Icon`;export{i as t};
