@@ -38,8 +38,9 @@ copyDir(path.join(root, "dist", "server"), FUNC_DIR);
 
 // ── 4. Write the Node.js serverless function entry ───────────────────────────
 //
-// The compiled server.js exports `export default { fetch(req) {} }` (Web Fetch API).
-// Vercel Node.js functions receive (req, res) — we bridge them here.
+// server.js exports `export default { fetch(req) {} }` (Web Fetch API).
+// Vercel Node.js serverless functions receive (req: IncomingMessage, res: ServerResponse).
+// We bridge them carefully, handling all edge cases.
 //
 fs.writeFileSync(
   path.join(FUNC_DIR, "index.js"),
@@ -47,37 +48,73 @@ fs.writeFileSync(
 import handler from "./server.js";
 
 export default async function vercelHandler(req, res) {
-  // Build a Web API Request from the Vercel IncomingMessage
-  const host = req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const url = new URL(req.url, \`\${proto}://\${host}\`);
+  try {
+    const host =
+      (Array.isArray(req.headers["x-forwarded-host"])
+        ? req.headers["x-forwarded-host"][0]
+        : req.headers["x-forwarded-host"]) ||
+      (Array.isArray(req.headers["host"])
+        ? req.headers["host"][0]
+        : req.headers["host"]) ||
+      "localhost";
 
-  const init = {
-    method: req.method,
-    headers: req.headers,
-  };
+    const proto =
+      (Array.isArray(req.headers["x-forwarded-proto"])
+        ? req.headers["x-forwarded-proto"][0]
+        : req.headers["x-forwarded-proto"]) || "https";
 
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    init.body = await streamToBuffer(req);
-    init.duplex = "half";
+    const urlStr = \`\${proto}://\${host}\${req.url || "/"}\`;
+    let url;
+    try { url = new URL(urlStr); }
+    catch { url = new URL("https://localhost/"); }
+
+    // Build Headers object — req.headers values can be string | string[] | undefined
+    const reqHeaders = new Headers();
+    for (const [key, val] of Object.entries(req.headers || {})) {
+      if (val === undefined) continue;
+      if (Array.isArray(val)) {
+        val.forEach(v => reqHeaders.append(key, v));
+      } else {
+        reqHeaders.set(key, val);
+      }
+    }
+
+    const init = { method: req.method || "GET", headers: reqHeaders };
+
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      const buf = await streamToBuffer(req);
+      if (buf.byteLength > 0) {
+        init.body = buf;
+        init.duplex = "half";
+      }
+    }
+
+    const webRes = await handler.fetch(new Request(url.toString(), init));
+
+    res.statusCode = webRes.status;
+
+    // Set response headers — avoid setting forbidden headers
+    const skip = new Set(["transfer-encoding", "connection", "keep-alive"]);
+    webRes.headers.forEach((value, key) => {
+      if (!skip.has(key.toLowerCase())) {
+        try { res.setHeader(key, value); } catch {}
+      }
+    });
+
+    const body = await webRes.arrayBuffer();
+    res.end(Buffer.from(body));
+  } catch (err) {
+    console.error("[vercel-handler]", err);
+    res.statusCode = 500;
+    res.setHeader("content-type", "text/plain");
+    res.end("Internal Server Error");
   }
-
-  const webReq = new Request(url.toString(), init);
-  const webRes = await handler.fetch(webReq);
-
-  res.statusCode = webRes.status;
-  for (const [key, value] of webRes.headers.entries()) {
-    res.setHeader(key, value);
-  }
-
-  const body = await webRes.arrayBuffer();
-  res.end(Buffer.from(body));
 }
 
 function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    stream.on("data", (c) => chunks.push(c));
+    stream.on("data", c => chunks.push(typeof c === "string" ? Buffer.from(c) : c));
     stream.on("end", () => resolve(Buffer.concat(chunks)));
     stream.on("error", reject);
   });
@@ -114,20 +151,15 @@ fs.writeFileSync(
 const config = {
   version: 3,
   routes: [
-    // Static assets with long-lived cache
+    // Immutable cache for hashed assets
     {
       src: "^/assets/(.+)$",
       headers: { "Cache-Control": "public, max-age=31536000, immutable" },
       continue: true,
     },
-    // Let the filesystem serve what it has (images, favicon, robots.txt, etc.)
+    // Serve static files from filesystem first (favicon, images, robots.txt, etc.)
     { handle: "filesystem" },
-    // Explicitly catch common static file extensions — never SSR these
-    {
-      src: "^/.+\\.(ico|png|jpg|jpeg|svg|gif|webp|mp4|webm|woff2?|ttf|otf|txt|xml|json)$",
-      status: 404,
-    },
-    // Fallback: all unmatched requests → SSR
+    // Everything else → SSR function
     { src: "/(.*)", dest: "/index" },
   ],
 };

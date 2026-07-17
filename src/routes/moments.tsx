@@ -356,16 +356,16 @@ function AIWidget() {
     <>
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[59] bg-black/40 backdrop-blur-sm animate-fade-in"
           onClick={() => setOpen(false)}
         />
       )}
 
-      {/* Mobile: full-screen bottom drawer */}
+      {/* Mobile: 90vh bottom drawer, hides floating nav + Ask AI button */}
       {open && (
         <div
-          className="fixed inset-x-0 bottom-0 z-50 lg:hidden animate-slide-up"
-          style={{ top: "5rem" }}
+          className="fixed inset-x-0 bottom-0 z-[60] lg:hidden animate-slide-up"
+          style={{ height: "90dvh" }}
         >
           <div className="h-full flex flex-col rounded-t-3xl overflow-hidden" style={{ background: "var(--panel)" }}>
             {card}
@@ -388,7 +388,8 @@ function AIWidget() {
       )}
 
       {/* Button — white bg, moderate radius, thin black ring with white gap */}
-      <div className="fixed bottom-24 right-4 lg:bottom-10 lg:right-6 z-50">
+      {/* Hidden on mobile when drawer is open so it doesn't overlap */}
+      <div className={`fixed bottom-24 right-4 lg:bottom-10 lg:right-6 z-50 ${open ? "hidden lg:block" : ""}`}>
         {/* Outer white halo — creates the white gap effect */}
         <div style={{ padding: 3, borderRadius: 13, background: "white", display: "inline-block" }}>
           {/* Inner black border */}
@@ -518,7 +519,7 @@ function MomentsPage() {
     <>
       <TopBar title="Moments" />
 
-      <div className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8">
+      <div className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8 pb-36 lg:pb-8">
 
         {/* Header */}
         <div className="mb-5">
