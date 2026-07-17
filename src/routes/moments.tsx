@@ -547,8 +547,7 @@ function MomentsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search moments, players, matches…"
-            style={{ minWidth: 0 }}
-            className="block w-full rounded-2xl border border-border bg-[var(--color-elevated)] pl-9 pr-9 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
+            className="block w-full min-w-0 rounded-2xl border border-border bg-[var(--color-elevated)] pl-9 pr-9 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
           />
           {search && (
             <button
@@ -560,8 +559,8 @@ function MomentsPage() {
           )}
         </div>
 
-        {/* Filter pills — categories only, no names */}
-        <div className="-mx-4 px-4 mb-6 flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+        {/* Filter pills */}
+        <div className="mb-6 flex flex-wrap gap-2">
           {FILTERS.map(f => (
             <button
               key={f.id}
