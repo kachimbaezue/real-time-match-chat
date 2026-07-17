@@ -236,12 +236,10 @@ function AIWidget() {
 
   const card = (
     <div
-      className="flex flex-col overflow-hidden"
+      className="flex flex-col overflow-hidden h-full lg:h-[480px]"
       style={{
         background: "var(--panel)",
         borderRadius: 20,
-        /* fixed height on desktop so it never grows/shrinks */
-        height: "clamp(320px, 480px, 480px)",
         boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)",
       }}
       onClick={e => e.stopPropagation()}
@@ -519,7 +517,7 @@ function MomentsPage() {
     <>
       <TopBar title="Moments" />
 
-      <div className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8 pb-36 lg:pb-8">
+      <div className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8" style={{ paddingBottom: "9rem" }}>
 
         {/* Header */}
         <div className="mb-5">
@@ -537,7 +535,7 @@ function MomentsPage() {
           </p>
         </div>
 
-        {/* Search bar — centered, prominent */}
+        {/* Search bar */}
         <div className="relative mb-5">
           <Search01Icon
             size={14}
@@ -549,7 +547,8 @@ function MomentsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search moments, players, matches…"
-            className="w-full rounded-2xl border border-border bg-[var(--color-elevated)] pl-9 pr-4 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
+            style={{ minWidth: 0 }}
+            className="block w-full rounded-2xl border border-border bg-[var(--color-elevated)] pl-9 pr-9 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
           />
           {search && (
             <button

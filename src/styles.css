@@ -215,3 +215,12 @@
 @utility animate-scale-in {
   animation: scale-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* Slide-up — used for bottom drawer */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@utility animate-slide-up {
+  animation: slide-up 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
