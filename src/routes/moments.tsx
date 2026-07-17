@@ -15,6 +15,7 @@ import {
   ArrowUp01Icon,
   SentIcon,
   Cancel01Icon,
+  Search01Icon,
 } from "hugeicons-react";
 
 export const Route = createFileRoute("/moments")({
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/moments")({
       { title: "Moments — Pulse | 2026 FIFA World Cup History" },
       { name: "description", content: "History-making records, biggest upsets and defining moments from the 2026 FIFA World Cup." },
       { property: "og:title", content: "Moments — Pulse" },
-      { property: "og:description", content: "Records shattered. Upsets that stunned the world. The moments that will be talked about for decades." },
+      { property: "og:description", content: "Records shattered. Upsets that stunned the world. Moments talked about for decades." },
     ],
   }),
   component: MomentsPage,
@@ -39,7 +40,7 @@ interface MomentItem {
 
 interface Section {
   id: string;
-  label: string;
+  category: string;
   tagline: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
   items: MomentItem[];
@@ -48,7 +49,7 @@ interface Section {
 const SECTIONS: Section[] = [
   {
     id: "history",
-    label: "History",
+    category: "History",
     tagline: "Tournament firsts",
     icon: ChampionIcon,
     items: [
@@ -62,7 +63,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: "messi",
-    label: "Messi",
+    category: "Records",
     tagline: "Lionel Messi · Argentina",
     icon: UserStar01Icon,
     items: [
@@ -74,7 +75,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: "ronaldo",
-    label: "Ronaldo",
+    category: "Records",
     tagline: "Cristiano Ronaldo · Portugal",
     icon: UserStar01Icon,
     items: [
@@ -84,7 +85,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: "mbappe",
-    label: "Mbappé",
+    category: "Records",
     tagline: "Kylian Mbappé · France",
     icon: FlashIcon,
     items: [
@@ -95,7 +96,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: "upsets",
-    label: "Upsets",
+    category: "Upsets",
     tagline: "Giant killers",
     icon: AlertDiamondIcon,
     items: [
@@ -109,7 +110,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: "matches",
-    label: "Matches",
+    category: "Matches",
     tagline: "Matches that stopped the world",
     icon: FootballIcon,
     items: [
@@ -123,22 +124,22 @@ const SECTIONS: Section[] = [
   },
   {
     id: "controversies",
-    label: "Controversies",
+    category: "Controversies",
     tagline: "What divided fans",
     icon: AlertDiamondIcon,
     items: [
       { text: "VAR controversy in almost every knockout round", sub: "Long reviews, inconsistent calls, marginal offsides" },
-      { text: "Connected Ball Technology divided opinion", sub: "Goals and offsides decided by ball sensor drew criticism" },
+      { text: "Connected Ball Technology divided opinion", sub: "Goals and offsides decided by ball sensor" },
       { text: "Mandatory hydration breaks interrupted match flow" },
-      { text: "Extreme heat raised player safety concerns throughout" },
+      { text: "Extreme heat raised player safety concerns" },
       { text: "Argentina's Las Malvinas banner post-semi-final", sub: "FIFA investigation sparked" },
       { text: "Skycam cable controversy in one knockout match" },
-      { text: "Third-place playoff criticised by coaches and fans worldwide" },
+      { text: "Third-place playoff criticised by coaches and fans" },
     ],
   },
   {
     id: "stories",
-    label: "Storylines",
+    category: "Storylines",
     tagline: "What we'll remember",
     icon: BookOpen01Icon,
     items: [
@@ -155,32 +156,19 @@ const SECTIONS: Section[] = [
 // ── AI ────────────────────────────────────────────────────────────────────────
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
+const SYSTEM = `You are a 2026 FIFA World Cup expert for the Pulse app. Only answer questions about the 2026 FIFA World Cup. If asked anything else say: "I only cover the 2026 World Cup."
 
-const SYSTEM = `You are a 2026 FIFA World Cup expert for the Pulse app. Only answer questions about the 2026 FIFA World Cup. If asked anything else, say: "I only cover the 2026 World Cup — ask me about that!"
-
-Key facts:
-- First 48-team World Cup, USA/Canada/Mexico, 104 matches
-- Argentina reached the final — Messi (39) became all-time WC top scorer, most appearances
-- Spain reached the final, best defensive record, beat France 2–0 in SF
-- Ronaldo: first player to appear in 6 World Cups
-- Mbappé: broke French WC records, scored in every WC
-- Upsets: Morocco beat Netherlands, Norway beat Brazil, Paraguay beat Germany (all on penalties)
-- Key matches: Argentina 3-2 Cape Verde, Belgium 3-2 Senegal, England 3-2 Mexico, Argentina 2-1 England (SF), Spain 2-0 France (SF)
-- Controversies: VAR, Connected Ball Technology, extreme heat, hydration breaks, Las Malvinas banner
-- Cape Verde + Colombia were the Cinderella stories
-
-Be direct. 2–3 sentences max unless more is asked.`;
+Facts: First 48-team WC (USA/Canada/Mexico, 104 matches). Argentina reached the final — Messi (39) became all-time WC top scorer. Spain reached the final, best defensive record, beat France 2–0 in SF. Ronaldo: first 6-WC player. Mbappé: broke French records. Upsets: Morocco beat Netherlands, Norway beat Brazil, Paraguay beat Germany (all pens). Matches: Argentina 3-2 Cape Verde, Belgium 3-2 Senegal, England 3-2 Mexico, Argentina 2-1 England SF, Spain 2-0 France SF. Controversies: VAR, Connected Ball Tech, heat, hydration breaks, Las Malvinas banner. Be direct, max 2–3 sentences.`;
 
 interface ChatMsg { role: "user" | "ai"; text: string }
 
 async function askWC(question: string, history: ChatMsg[]): Promise<string> {
   try {
     const ctx = history.slice(-4).map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.text}`).join("\n");
-    const prompt = `${SYSTEM}\n\n${ctx ? ctx + "\n" : ""}User: ${question}\nAssistant:`;
     const res = await fetch(`${BASE_URL}/ai/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens: 150 }),
+      body: JSON.stringify({ prompt: `${SYSTEM}\n\n${ctx ? ctx + "\n" : ""}User: ${question}\nAssistant:`, maxTokens: 150 }),
     });
     if (!res.ok) throw new Error();
     const d = await res.json() as { text: string };
@@ -192,112 +180,15 @@ async function askWC(question: string, history: ChatMsg[]): Promise<string> {
     if (q.includes("mbapp")) return "Mbappé broke multiple French WC records and scored in every World Cup he has played.";
     if (q.includes("spain")) return "Spain reached the final with the tournament's best defensive record, beating France 2–0 in the semi-final.";
     if (q.includes("argentina")) return "Argentina, led by Messi, reached the final — beating England 2–1 in a dramatic semi-final.";
-    if (q.includes("upset") || q.includes("surprise")) return "Morocco beat the Netherlands, Norway beat Brazil, and Paraguay beat Germany — all on penalties.";
-    if (q.includes("var")) return "VAR was heavily criticised throughout the tournament, with long reviews and inconsistent calls dominating discussion.";
+    if (q.includes("upset")) return "Morocco beat the Netherlands, Norway beat Brazil, and Paraguay beat Germany — all on penalties.";
+    if (q.includes("var")) return "VAR was heavily criticised throughout the tournament, with long reviews and inconsistent calls in nearly every knockout round.";
     return "Ask me anything about the 2026 World Cup — records, upsets, key matches, or controversies.";
   }
 }
 
-// ── Section (thread-style, mirrors Hot page) ──────────────────────────────────
-
-function SectionThread({ section, isLast }: { section: Section; isLast: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  const Icon = section.icon;
-  const preview = section.items.slice(0, 3);
-  const rest = section.items.slice(3);
-  const hasMore = rest.length > 0;
-
-  return (
-    <div className="flex gap-3">
-      {/* Left — connector line + icon dot */}
-      <div className="flex flex-col items-center shrink-0" style={{ width: 28 }}>
-        <div className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card z-10 shrink-0">
-          <Icon size={14} strokeWidth={1.75} className="text-foreground" />
-        </div>
-        {!isLast && (
-          <div className="w-px flex-1 min-h-[24px] bg-border/50 mt-1" />
-        )}
-      </div>
-
-      {/* Right — content */}
-      <div className="pb-6 flex-1 min-w-0">
-        {/* Label + tagline */}
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-            {section.label}
-          </span>
-        </div>
-        <h3 className="font-display text-[15px] font-bold text-foreground mb-3">
-          {section.tagline}
-        </h3>
-
-        {/* Items */}
-        <div className="space-y-2.5">
-          {preview.map((item, i) => (
-            <MomentItem key={i} item={item} />
-          ))}
-          {expanded && rest.map((item, i) => (
-            <MomentItem key={`r${i}`} item={item} />
-          ))}
-        </div>
-
-        {hasMore && (
-          <button
-            onClick={() => setExpanded(v => !v)}
-            className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {expanded
-              ? <><ArrowUp01Icon size={11} strokeWidth={2} /> Show less</>
-              : <><ArrowDown01Icon size={11} strokeWidth={2} /> {rest.length} more</>
-            }
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MomentItem({ item }: { item: MomentItem }) {
-  return (
-    <div className="flex items-start gap-2.5">
-      {item.flag
-        ? <Flag code={item.flag} size={13} className="mt-0.5 shrink-0" />
-        : <span className="mt-2 h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
-      }
-      <div className="min-w-0">
-        <p className="text-[13px] text-foreground leading-snug">{item.text}</p>
-        {item.sub && <p className="text-[11px] text-muted-foreground mt-0.5">{item.sub}</p>}
-      </div>
-    </div>
-  );
-}
-
-// ── Filter pill ────────────────────────────────────────────────────────────────
-
-function FilterPill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={[
-        "shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all whitespace-nowrap",
-        active
-          ? "bg-foreground text-background"
-          : "bg-[var(--color-elevated)] text-muted-foreground hover:text-foreground",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
-}
-
 // ── AI Drawer ─────────────────────────────────────────────────────────────────
 
-const CHIPS = [
-  "What did Messi achieve?",
-  "Biggest upset?",
-  "Who reached the final?",
-  "Best VAR controversy?",
-];
+const CHIPS = ["What did Messi achieve?", "Biggest upset?", "Who reached the final?", "VAR controversy?"];
 
 function AIDrawer({ onClose }: { onClose: () => void }) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
@@ -306,15 +197,8 @@ function AIDrawer({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 80);
-  }, []);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, loading]);
-
-  // Close on Escape
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80); }, []);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, loading]);
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", fn);
@@ -335,33 +219,34 @@ function AIDrawer({ onClose }: { onClose: () => void }) {
 
   return ReactDOM.createPortal(
     <>
-      {/* Backdrop — click to close */}
+      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
 
-      {/* Drawer — full screen on mobile, right-aligned panel on desktop */}
+      {/* Mobile: full-screen bottom sheet | Desktop: floating card (like the reference image) */}
       <div
         className={[
           "fixed z-50 flex flex-col",
-          // Mobile: full-screen bottom sheet
-          "inset-x-0 bottom-0 top-16 rounded-t-3xl",
-          // Desktop: right-side panel
-          "lg:inset-x-auto lg:top-0 lg:bottom-0 lg:right-0 lg:w-[400px] lg:rounded-none lg:border-l lg:border-border",
-          "animate-slide-up lg:animate-slide-in-left",
+          /* mobile: slide up from bottom, full width */
+          "inset-x-0 bottom-0 top-24 rounded-t-3xl",
+          /* desktop: floating card, right-aligned, doesn't touch screen edge */
+          "lg:inset-auto lg:top-auto lg:bottom-8 lg:right-6 lg:w-[380px] lg:rounded-3xl lg:max-h-[560px]",
+          "animate-scale-in",
         ].join(" ")}
         style={{ background: "var(--panel)" }}
+        onClick={e => e.stopPropagation()}
       >
-        {/* Drag handle (mobile only) */}
+        {/* Drag handle — mobile only */}
         <div className="flex justify-center pt-3 pb-1 lg:hidden shrink-0">
           <div className="h-1 w-10 rounded-full bg-border" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 shrink-0">
           <div>
-            <p className="text-[14px] font-bold text-foreground">Ask about the World Cup</p>
+            <p className="text-[16px] font-bold text-foreground">Ask about the World Cup</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">2026 FIFA World Cup · AI</p>
           </div>
           <button
@@ -372,66 +257,61 @@ function AIDrawer({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
-          {/* Empty state — chips */}
-          {msgs.length === 0 && (
-            <div className="flex flex-col gap-4">
-              <p className="text-[13px] text-muted-foreground">
-                What do you want to know about the 2026 World Cup?
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {CHIPS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => send(c)}
-                    className="rounded-full border border-border px-3.5 py-2 text-[12px] font-medium text-foreground hover:bg-[var(--color-elevated)] transition-colors"
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
+        {/* Messages / empty state */}
+        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-3 min-h-0">
+          {msgs.length === 0 ? (
+            <div className="space-y-3 pt-1">
+              {CHIPS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => send(c)}
+                  className="flex w-full items-center justify-between rounded-2xl bg-[var(--color-elevated)] px-4 py-3.5 text-[13px] font-medium text-foreground hover:bg-[var(--color-elevated)]/80 transition-colors group"
+                >
+                  {c}
+                  <ArrowDown01Icon size={13} strokeWidth={2} className="rotate-[-90deg] text-muted-foreground group-hover:text-foreground transition-colors" />
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* Thread */}
-          {msgs.map((m, i) => (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <p className={[
-                "max-w-[82%] px-4 py-2.5 text-[13px] leading-relaxed rounded-2xl",
-                m.role === "user"
-                  ? "bg-foreground text-background rounded-br-md"
-                  : "bg-[var(--color-elevated)] text-foreground rounded-bl-md",
-              ].join(" ")}>
-                {m.text}
-              </p>
-            </div>
-          ))}
-
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-[var(--color-elevated)] rounded-2xl rounded-bl-md px-4 py-3 flex gap-1.5">
-                {[0,1,2].map(i => (
-                  <span key={i} className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-bounce"
-                    style={{ animationDelay: `${i * 120}ms` }} />
-                ))}
-              </div>
-            </div>
+          ) : (
+            <>
+              {msgs.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <p className={[
+                    "max-w-[82%] px-4 py-2.5 text-[13px] leading-relaxed rounded-2xl",
+                    m.role === "user"
+                      ? "bg-foreground text-background rounded-br-md"
+                      : "bg-[var(--color-elevated)] text-foreground rounded-bl-md",
+                  ].join(" ")}>
+                    {m.text}
+                  </p>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-[var(--color-elevated)] rounded-2xl rounded-bl-md px-4 py-3 flex gap-1.5">
+                    {[0,1,2].map(i => (
+                      <span key={i} className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-bounce"
+                        style={{ animationDelay: `${i * 120}ms` }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
           <div ref={bottomRef} />
         </div>
 
         {/* Input */}
-        <div className="px-5 pb-6 pt-3 border-t border-border shrink-0">
+        <div className="px-5 pb-6 pt-3 shrink-0">
           <form
             onSubmit={e => { e.preventDefault(); send(); }}
-            className="flex items-center gap-3 rounded-2xl border border-border bg-[var(--color-elevated)] px-4 py-3"
+            className="flex items-center gap-3 rounded-2xl bg-[var(--color-elevated)] px-4 py-3"
           >
             <input
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="Ask anything about the 2026 World Cup…"
+              placeholder="Ask anything…"
               className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
             />
             <button
@@ -449,13 +329,102 @@ function AIDrawer({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Section thread item ───────────────────────────────────────────────────────
+
+function SectionThread({ section, isLast }: { section: Section; isLast: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const Icon = section.icon;
+  const preview = section.items.slice(0, 3);
+  const rest = section.items.slice(3);
+
+  return (
+    <div className="flex gap-3">
+      {/* Thread spine */}
+      <div className="flex flex-col items-center shrink-0" style={{ width: 28 }}>
+        <div className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card z-10 shrink-0">
+          <Icon size={14} strokeWidth={1.75} className="text-foreground" />
+        </div>
+        {!isLast && <div className="w-px flex-1 min-h-[24px] bg-border/40 mt-1" />}
+      </div>
+
+      {/* Content */}
+      <div className="pb-7 flex-1 min-w-0">
+        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          {section.category}
+        </span>
+        <h3 className="font-display text-[15px] font-bold text-foreground mt-0.5 mb-3">
+          {section.tagline}
+        </h3>
+
+        <div className="space-y-2.5">
+          {preview.map((item, i) => (
+            <MomentItemRow key={i} item={item} />
+          ))}
+          {expanded && rest.map((item, i) => (
+            <MomentItemRow key={`r${i}`} item={item} />
+          ))}
+        </div>
+
+        {rest.length > 0 && (
+          <button
+            onClick={() => setExpanded(v => !v)}
+            className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {expanded
+              ? <><ArrowUp01Icon size={11} strokeWidth={2} /> Show less</>
+              : <><ArrowDown01Icon size={11} strokeWidth={2} /> {rest.length} more</>
+            }
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MomentItemRow({ item }: { item: MomentItem }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      {item.flag
+        ? <Flag code={item.flag} size={13} className="mt-0.5 shrink-0" />
+        : <span className="mt-2 h-1 w-1 rounded-full bg-muted-foreground/30 shrink-0" />
+      }
+      <div className="min-w-0">
+        <p className="text-[13px] text-foreground leading-snug">{item.text}</p>
+        {item.sub && <p className="text-[11px] text-muted-foreground mt-0.5">{item.sub}</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-function MomentsPage() {
-  const [filter, setFilter] = useState<string>("all");
-  const [aiOpen, setAiOpen] = useState(false);
+// Categories for filtering (not individual names)
+const FILTERS = [
+  { id: "all",           label: "All" },
+  { id: "history",       label: "History" },
+  { id: "records",       label: "Records" },
+  { id: "upsets",        label: "Upsets" },
+  { id: "matches",       label: "Matches" },
+  { id: "controversies", label: "Controversies" },
+  { id: "stories",       label: "Storylines" },
+];
 
-  const displayed = filter === "all" ? SECTIONS : SECTIONS.filter(s => s.id === filter);
+function MomentsPage() {
+  const [filter, setFilter]   = useState("all");
+  const [search, setSearch]   = useState("");
+  const [aiOpen, setAiOpen]   = useState(false);
+  const searchRef             = useRef<HTMLInputElement>(null);
+
+  const displayed = SECTIONS.filter(s => {
+    const matchFilter =
+      filter === "all" ||
+      filter === s.id ||
+      (filter === "records" && s.category === "Records");
+    const q = search.toLowerCase().trim();
+    const matchSearch = !q || s.tagline.toLowerCase().includes(q) ||
+      s.items.some(i => i.text.toLowerCase().includes(q) || (i.sub ?? "").toLowerCase().includes(q));
+    return matchFilter && matchSearch;
+  });
 
   return (
     <>
@@ -473,7 +442,7 @@ function MomentsPage() {
 
       <div className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8">
 
-        {/* Page header */}
+        {/* Header */}
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-1.5">
             <ChampionIcon size={14} strokeWidth={1.75} className="text-muted-foreground" />
@@ -481,7 +450,7 @@ function MomentsPage() {
               2026 FIFA World Cup
             </span>
           </div>
-          <h1 className="font-display text-[20px] font-bold text-foreground tracking-tight leading-tight">
+          <h1 className="font-display text-[20px] font-bold text-foreground tracking-tight">
             History Made
           </h1>
           <p className="mt-1 text-[12px] text-muted-foreground">
@@ -489,24 +458,65 @@ function MomentsPage() {
           </p>
         </div>
 
-        {/* Filter pills — same pattern as Hot */}
+        {/* Search bar — centered, prominent */}
+        <div className="relative mb-5">
+          <Search01Icon
+            size={14}
+            strokeWidth={1.75}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+          />
+          <input
+            ref={searchRef}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search moments, players, matches…"
+            className="w-full rounded-2xl border border-border bg-[var(--color-elevated)] pl-9 pr-4 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Cancel01Icon size={13} strokeWidth={2} />
+            </button>
+          )}
+        </div>
+
+        {/* Filter pills — categories only, no names */}
         <div className="-mx-4 px-4 mb-6 flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
-          <FilterPill active={filter === "all"} label="All" onClick={() => setFilter("all")} />
-          {SECTIONS.map(s => (
-            <FilterPill key={s.id} active={filter === s.id} label={s.label} onClick={() => setFilter(s.id)} />
+          {FILTERS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={[
+                "shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all whitespace-nowrap",
+                filter === f.id
+                  ? "bg-foreground text-background"
+                  : "bg-[var(--color-elevated)] text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              {f.label}
+            </button>
           ))}
         </div>
 
         {/* Thread */}
-        <div>
-          {displayed.map((section, idx) => (
-            <SectionThread
-              key={section.id}
-              section={section}
-              isLast={idx === displayed.length - 1}
-            />
-          ))}
-        </div>
+        {displayed.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <p className="text-[14px] font-semibold text-foreground">No results</p>
+            <p className="text-[12px] text-muted-foreground">Try a different search or filter.</p>
+          </div>
+        ) : (
+          <div>
+            {displayed.map((section, idx) => (
+              <SectionThread
+                key={section.id}
+                section={section}
+                isLast={idx === displayed.length - 1}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground/35">
