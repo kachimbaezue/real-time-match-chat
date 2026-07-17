@@ -4,7 +4,7 @@ import { TopBar } from "@/components/AppLayout";
 import { Flag } from "@/components/Flag";
 import {
   ChampionIcon,
-  Trophy01Icon,
+  Award01Icon,
   FootballIcon,
   UserStar01Icon,
   AlertDiamondIcon,
@@ -601,7 +601,7 @@ function MomentsPage() {
 
         {/* Footer */}
         <div className="mt-8 flex items-center justify-center gap-2 text-[10px] text-muted-foreground/40">
-          <Trophy01Icon size={12} strokeWidth={1.75} />
+          <Award01Icon size={12} strokeWidth={1.75} />
           <span>2026 FIFA World Cup · USA, Canada &amp; Mexico</span>
         </div>
       </div>
