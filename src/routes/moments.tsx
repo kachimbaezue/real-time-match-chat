@@ -186,24 +186,38 @@ async function askWC(question: string, history: ChatMsg[]): Promise<string> {
   }
 }
 
-// ── AI Drawer ─────────────────────────────────────────────────────────────────
+// ── AI — floating "Ask AI" pill + card/drawer ─────────────────────────────────
 
 const CHIPS = ["What did Messi achieve?", "Biggest upset?", "Who reached the final?", "VAR controversy?"];
 
-function AIDrawer({ onClose }: { onClose: () => void }) {
-  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState("");
+/**
+ * Layout matches the reference image:
+ * - Fixed bottom-right pill button ("Ask AI")
+ * - Click → card slides up above the button (desktop)
+ * - On mobile → full-height bottom drawer
+ * - Card: large border-radius (like the image), ~Google-bar height for input
+ */
+function AIWidget() {
+  const [open, setOpen]     = useState(false);
+  const [msgs, setMsgs]     = useState<ChatMsg[]>([]);
+  const [input, setInput]   = useState("");
   const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80); }, []);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, loading]);
   useEffect(() => {
-    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    if (open) setTimeout(() => inputRef.current?.focus(), 100);
+  }, [open]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, loading]);
+
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
-  }, [onClose]);
+  }, []);
 
   async function send(text?: string) {
     const q = (text ?? input).trim();
@@ -217,112 +231,159 @@ function AIDrawer({ onClose }: { onClose: () => void }) {
     setLoading(false);
   }
 
-  return ReactDOM.createPortal(
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-fade-in"
-        onClick={onClose}
-      />
+  const card = (
+    <div
+      className="flex flex-col overflow-hidden"
+      style={{
+        background: "var(--panel)",
+        // big radius like the reference image
+        borderRadius: 20,
+        boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)",
+      }}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Drag handle (mobile only) */}
+      <div className="flex justify-center pt-3 pb-1 lg:hidden shrink-0">
+        <div className="h-1 w-10 rounded-full bg-border" />
+      </div>
 
-      {/* Mobile: full-screen bottom sheet | Desktop: floating card (like the reference image) */}
-      <div
-        className={[
-          "fixed z-50 flex flex-col",
-          /* mobile: slide up from bottom, full width */
-          "inset-x-0 bottom-0 top-24 rounded-t-3xl",
-          /* desktop: floating card, right-aligned, doesn't touch screen edge */
-          "lg:inset-auto lg:top-auto lg:bottom-8 lg:right-6 lg:w-[380px] lg:rounded-3xl lg:max-h-[560px]",
-          "animate-scale-in",
-        ].join(" ")}
-        style={{ background: "var(--panel)" }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Drag handle — mobile only */}
-        <div className="flex justify-center pt-3 pb-1 lg:hidden shrink-0">
-          <div className="h-1 w-10 rounded-full bg-border" />
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground">2026 FIFA World Cup</p>
+          <p className="text-[18px] font-bold text-foreground leading-tight mt-0.5">How can we help?</p>
         </div>
+        <button
+          onClick={() => setOpen(false)}
+          className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Cancel01Icon size={15} strokeWidth={2} />
+        </button>
+      </div>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 shrink-0">
-          <div>
-            <p className="text-[16px] font-bold text-foreground">Ask about the World Cup</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">2026 FIFA World Cup · AI</p>
+      {/* Chips or messages */}
+      <div className="flex-1 overflow-y-auto px-5 pb-2 min-h-0">
+        {msgs.length === 0 ? (
+          <div className="space-y-1 py-1">
+            {CHIPS.map((c, i) => (
+              <button
+                key={c}
+                onClick={() => send(c)}
+                className={[
+                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-[13px] font-medium text-foreground transition-colors group",
+                  i === 0 ? "bg-[var(--color-elevated)]" : "hover:bg-[var(--color-elevated)]",
+                ].join(" ")}
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background/30 text-[11px]">
+                  {["⚽","🏆","🇦🇷","🟥"][i]}
+                </span>
+                {c}
+                <ArrowDown01Icon size={12} strokeWidth={2} className="ml-auto -rotate-90 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
+              </button>
+            ))}
           </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-[var(--color-elevated)] transition-colors"
-          >
-            <Cancel01Icon size={16} strokeWidth={2} />
-          </button>
-        </div>
-
-        {/* Messages / empty state */}
-        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-3 min-h-0">
-          {msgs.length === 0 ? (
-            <div className="space-y-3 pt-1">
-              {CHIPS.map(c => (
-                <button
-                  key={c}
-                  onClick={() => send(c)}
-                  className="flex w-full items-center justify-between rounded-2xl bg-[var(--color-elevated)] px-4 py-3.5 text-[13px] font-medium text-foreground hover:bg-[var(--color-elevated)]/80 transition-colors group"
-                >
-                  {c}
-                  <ArrowDown01Icon size={13} strokeWidth={2} className="rotate-[-90deg] text-muted-foreground group-hover:text-foreground transition-colors" />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <>
-              {msgs.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <p className={[
-                    "max-w-[82%] px-4 py-2.5 text-[13px] leading-relaxed rounded-2xl",
-                    m.role === "user"
-                      ? "bg-foreground text-background rounded-br-md"
-                      : "bg-[var(--color-elevated)] text-foreground rounded-bl-md",
-                  ].join(" ")}>
-                    {m.text}
-                  </p>
+        ) : (
+          <div className="space-y-2.5 py-2">
+            {msgs.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <p className={[
+                  "max-w-[84%] px-4 py-2.5 text-[13px] leading-relaxed rounded-2xl",
+                  m.role === "user"
+                    ? "bg-foreground text-background rounded-br-md"
+                    : "bg-[var(--color-elevated)] text-foreground rounded-bl-md",
+                ].join(" ")}>
+                  {m.text}
+                </p>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-[var(--color-elevated)] rounded-2xl rounded-bl-md px-4 py-3 flex gap-1.5">
+                  {[0,1,2].map(i => (
+                    <span key={i} className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-bounce"
+                      style={{ animationDelay: `${i * 120}ms` }} />
+                  ))}
                 </div>
-              ))}
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="bg-[var(--color-elevated)] rounded-2xl rounded-bl-md px-4 py-3 flex gap-1.5">
-                    {[0,1,2].map(i => (
-                      <span key={i} className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-bounce"
-                        style={{ animationDelay: `${i * 120}ms` }} />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          <div ref={bottomRef} />
-        </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        )}
+      </div>
 
-        {/* Input */}
-        <div className="px-5 pb-6 pt-3 shrink-0">
-          <form
-            onSubmit={e => { e.preventDefault(); send(); }}
-            className="flex items-center gap-3 rounded-2xl bg-[var(--color-elevated)] px-4 py-3"
-          >
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="Ask anything…"
-              className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
-            />
+      {/* Input — Google-bar height, same large radius */}
+      <div className="px-5 pb-5 pt-2 shrink-0">
+        <form
+          onSubmit={e => { e.preventDefault(); send(); }}
+          className="flex items-center gap-3 px-4 rounded-2xl bg-[var(--color-elevated)]"
+          style={{ height: 52 }}
+        >
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="Ask about the 2026 World Cup…"
+            className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+          />
+          {input.trim() && (
             <button
               type="submit"
-              disabled={!input.trim() || loading}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-foreground text-background disabled:opacity-30 transition-opacity"
+              disabled={loading}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-foreground text-background disabled:opacity-30 transition-opacity"
             >
-              <SentIcon size={12} strokeWidth={2} />
+              <SentIcon size={13} strokeWidth={2} />
             </button>
-          </form>
+          )}
+        </form>
+      </div>
+    </div>
+  );
+
+  return ReactDOM.createPortal(
+    <>
+      {/* Backdrop when open */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm animate-fade-in"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* ── Mobile: bottom drawer ── */}
+      {open && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-50 flex flex-col lg:hidden animate-slide-up"
+          style={{ top: "5rem" }}
+        >
+          <div className="flex-1 flex flex-col rounded-t-3xl overflow-hidden" style={{ background: "var(--panel)" }}>
+            {card}
+          </div>
         </div>
+      )}
+
+      {/* ── Desktop: floating card above the pill ── */}
+      {open && (
+        <div
+          className="hidden lg:block fixed z-50 bottom-20 right-6 w-[380px] animate-scale-in"
+          style={{ transformOrigin: "bottom right" }}
+        >
+          {card}
+        </div>
+      )}
+
+      {/* Fixed pill button — bottom-right, like "Help" in the image */}
+      <div className="fixed bottom-24 right-4 lg:bottom-8 lg:right-6 z-50">
+        <button
+          onClick={() => setOpen(v => !v)}
+          className={[
+            "flex items-center gap-2 rounded-full border px-5 py-2.5 text-[13px] font-semibold transition-all shadow-lg",
+            open
+              ? "bg-foreground text-background border-foreground"
+              : "bg-[var(--panel)] text-foreground border-border hover:border-foreground/30 shadow-black/30",
+          ].join(" ")}
+        >
+          Ask AI
+        </button>
       </div>
     </>,
     document.body
@@ -412,7 +473,6 @@ const FILTERS = [
 function MomentsPage() {
   const [filter, setFilter]   = useState("all");
   const [search, setSearch]   = useState("");
-  const [aiOpen, setAiOpen]   = useState(false);
   const searchRef             = useRef<HTMLInputElement>(null);
 
   const displayed = SECTIONS.filter(s => {
@@ -428,17 +488,7 @@ function MomentsPage() {
 
   return (
     <>
-      <TopBar
-        title="Moments"
-        action={
-          <button
-            onClick={() => setAiOpen(true)}
-            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-foreground/25 transition-colors"
-          >
-            Ask AI
-          </button>
-        }
-      />
+      <TopBar title="Moments" />
 
       <div className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8">
 
@@ -526,6 +576,7 @@ function MomentsPage() {
       </div>
 
       {aiOpen && <AIDrawer onClose={() => setAiOpen(false)} />}
+      <AIWidget />
     </>
   );
 }
