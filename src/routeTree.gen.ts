@@ -14,6 +14,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RecentRouteImport } from './routes/recent'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as MomentsRouteImport } from './routes/moments'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as HotRouteImport } from './routes/hot'
 import { Route as ExploreRouteImport } from './routes/explore'
@@ -43,6 +44,11 @@ const ProfileRoute = ProfileRouteImport.update({
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MomentsRoute = MomentsRouteImport.update({
+  id: '/moments',
+  path: '/moments',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveRoute = LiveRouteImport.update({
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/explore': typeof ExploreRoute
   '/hot': typeof HotRoute
   '/live': typeof LiveRoute
+  '/moments': typeof MomentsRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/recent': typeof RecentRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/explore': typeof ExploreRoute
   '/hot': typeof HotRoute
   '/live': typeof LiveRoute
+  '/moments': typeof MomentsRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/recent': typeof RecentRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/explore': typeof ExploreRoute
   '/hot': typeof HotRoute
   '/live': typeof LiveRoute
+  '/moments': typeof MomentsRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/recent': typeof RecentRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/hot'
     | '/live'
+    | '/moments'
     | '/notifications'
     | '/profile'
     | '/recent'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/hot'
     | '/live'
+    | '/moments'
     | '/notifications'
     | '/profile'
     | '/recent'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/hot'
     | '/live'
+    | '/moments'
     | '/notifications'
     | '/profile'
     | '/recent'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   ExploreRoute: typeof ExploreRoute
   HotRoute: typeof HotRoute
   LiveRoute: typeof LiveRoute
+  MomentsRoute: typeof MomentsRoute
   NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRoute
   RecentRoute: typeof RecentRoute
@@ -197,6 +210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/moments': {
+      id: '/moments'
+      path: '/moments'
+      fullPath: '/moments'
+      preLoaderRoute: typeof MomentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/live': {
       id: '/live'
       path: '/live'
@@ -240,6 +260,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExploreRoute: ExploreRoute,
   HotRoute: HotRoute,
   LiveRoute: LiveRoute,
+  MomentsRoute: MomentsRoute,
   NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRoute,
   RecentRoute: RecentRoute,
