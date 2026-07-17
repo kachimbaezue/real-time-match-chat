@@ -286,9 +286,9 @@ function AIWidget() {
                   i === 0 ? "bg-[var(--color-elevated)]" : "hover:bg-[var(--color-elevated)]",
                 ].join(" ")}
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background/30 text-[11px]">
-                  {["⚽","🏆","🇦🇷","🟥"][i]}
-                </span>
+                {/* <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background/30 text-[11px]">
+                  {["","","",""][i]}
+                </span> */}
                 {c}
                 <ArrowDown01Icon size={12} strokeWidth={2} className="ml-auto -rotate-90 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
               </button>
