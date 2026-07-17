@@ -15,6 +15,7 @@ import {
   SentIcon,
   Cancel01Icon,
   ArrowUp01Icon,
+  ArrowDown01Icon,
 } from "hugeicons-react";
 
 export const Route = createFileRoute("/moments")({
@@ -29,585 +30,433 @@ export const Route = createFileRoute("/moments")({
   component: MomentsPage,
 });
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-type MomentCategory = "history" | "records" | "upsets" | "matches" | "stars" | "controversies" | "stories";
-
-interface Moment {
+interface Section {
   id: string;
-  category: MomentCategory;
-  title: string;
-  subtitle?: string;
-  items: string[];
-  flag?: string;   // ISO 2-letter for flag
   icon: React.ComponentType<any>;
-  accent: string;  // tailwind color class for the glow/border
-  featured?: boolean;
+  label: string;
+  title: string;
+  items: Item[];
 }
 
-const MOMENTS: Moment[] = [
-  // ── History ──
+interface Item {
+  text: string;
+  flag?: string; // 2-letter ISO
+  sub?: string;
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+const SECTIONS: Section[] = [
   {
     id: "tournament",
-    category: "history",
-    title: "First-Ever 48-Team World Cup",
-    subtitle: "A tournament unlike anything before it",
     icon: ChampionIcon,
-    accent: "from-amber-500/20 to-yellow-500/5",
-    featured: true,
+    label: "History",
+    title: "Tournament firsts",
     items: [
-      "First World Cup hosted by three countries — USA, Canada & Mexico",
-      "First World Cup with 104 matches",
-      "First World Cup featuring a Round of 32",
-      "Biggest tournament in FIFA history",
-      "1,200+ players — largest squad count ever",
-      "Most stadiums ever used in a single World Cup",
-      "Most travel distance between venues in World Cup history",
+      { text: "First-ever 48-team FIFA World Cup" },
+      { text: "First World Cup hosted by three countries", sub: "USA, Canada & Mexico" },
+      { text: "First World Cup with 104 matches" },
+      { text: "First World Cup featuring a Round of 32" },
+      { text: "1,200+ players — largest squad count in history" },
+      { text: "Most stadiums and most travel distance ever" },
     ],
   },
-  // ── Records ──
   {
     id: "messi",
-    category: "records",
-    title: "Lionel Messi",
-    subtitle: "The Greatest — rewriting history at 39",
     icon: UserStar01Icon,
-    accent: "from-sky-500/20 to-blue-500/5",
-    featured: true,
-    flag: "ar",
+    label: "Messi",
+    title: "Lionel Messi",
     items: [
-      "Became the all-time leading World Cup goalscorer",
-      "Extended his record for most World Cup appearances",
-      "Oldest player ever to score multiple goals in a World Cup",
-      "Led Argentina to another World Cup final at age 39",
+      { text: "All-time leading World Cup goalscorer", flag: "AR" },
+      { text: "Most World Cup appearances ever", flag: "AR" },
+      { text: "Oldest player to score multiple goals in a World Cup", flag: "AR" },
+      { text: "Led Argentina to the final at age 39", flag: "AR" },
     ],
   },
   {
     id: "ronaldo",
-    category: "records",
-    title: "Cristiano Ronaldo",
-    subtitle: "Six World Cups — a record that may never fall",
     icon: UserStar01Icon,
-    accent: "from-red-500/20 to-rose-500/5",
-    flag: "pt",
+    label: "Ronaldo",
+    title: "Cristiano Ronaldo",
     items: [
-      "First player ever to appear in six FIFA World Cups",
-      "Extended his record as the oldest outfield player in World Cup history",
+      { text: "First player to appear in six FIFA World Cups", flag: "PT" },
+      { text: "Oldest outfield player in World Cup history", flag: "PT" },
     ],
   },
   {
     id: "mbappe",
-    category: "records",
-    title: "Kylian Mbappé",
-    subtitle: "France's knockout-stage machine",
     icon: FlashIcon,
-    accent: "from-blue-500/20 to-indigo-500/5",
-    flag: "fr",
+    label: "Mbappé",
+    title: "Kylian Mbappé",
     items: [
-      "Broke multiple French World Cup scoring records",
-      "Continued his streak of scoring in every World Cup he's played",
-      "Surpassed several all-time knockout-stage scoring marks",
+      { text: "Broke multiple French World Cup scoring records", flag: "FR" },
+      { text: "Scored in every World Cup he has played", flag: "FR" },
+      { text: "Surpassed all-time knockout-stage scoring marks", flag: "FR" },
     ],
   },
-  // ── Upsets ──
   {
     id: "upsets",
-    category: "upsets",
-    title: "The Giant Killers",
-    subtitle: "Moments that stopped the world",
     icon: AlertDiamondIcon,
-    accent: "from-emerald-500/20 to-green-500/5",
-    featured: true,
+    label: "Upsets",
+    title: "Giant killers",
     items: [
-      "🇲🇦 Morocco eliminated the Netherlands — huge upset on penalties",
-      "🇳🇴 Norway knocked out Brazil — one of the biggest surprises of the Round of 16",
-      "🇵🇾 Paraguay eliminated Germany — won on penalties after a 1–1 draw",
-      "🇪🇬 Egypt beat Australia on penalties — a dramatic shootout thriller",
-      "🇨🇻 Cape Verde reached the knockout stage — the tournament's Cinderella story",
-      "🇨🇴 Colombia reached the Round of 16 — another strong run for South America",
+      { text: "Morocco eliminated the Netherlands on penalties", flag: "MA" },
+      { text: "Norway knocked out Brazil in the Round of 16", flag: "NO" },
+      { text: "Paraguay eliminated Germany on penalties", flag: "PY" },
+      { text: "Egypt beat Australia in a dramatic shootout", flag: "EG" },
+      { text: "Cape Verde reached the knockout stage", flag: "CV" },
+      { text: "Colombia reached the Round of 16", flag: "CO" },
     ],
   },
-  // ── Biggest Matches ──
   {
     id: "matches",
-    category: "matches",
-    title: "Matches You Had to Watch",
-    subtitle: "The games that defined the tournament",
     icon: FootballIcon,
-    accent: "from-violet-500/20 to-purple-500/5",
+    label: "Matches",
+    title: "Matches that stopped the world",
     items: [
-      "🇦🇷 Argentina 3–2 🇨🇻 Cape Verde",
-      "🇧🇪 Belgium 3–2 🇸🇳 Senegal",
-      "🏴󠁧󠁢󠁥󠁮󠁧󠁿 England 3–2 🇲🇽 Mexico",
-      "🇪🇸 Spain 2–1 🇧🇪 Belgium",
-      "🇦🇷 Argentina 2–1 🏴󠁧󠁢󠁥󠁮󠁧󠁿 England (Semi-final)",
-      "🇪🇸 Spain 2–0 🇫🇷 France (Semi-final)",
+      { text: "Argentina 3–2 Cape Verde", flag: "AR" },
+      { text: "Belgium 3–2 Senegal", flag: "BE" },
+      { text: "England 3–2 Mexico", flag: "GB" },
+      { text: "Spain 2–1 Belgium", flag: "ES" },
+      { text: "Argentina 2–1 England — Semi-final", flag: "AR", sub: "Messi's final chapter" },
+      { text: "Spain 2–0 France — Semi-final", flag: "ES", sub: "One of the tournament's great defensive performances" },
     ],
   },
-  // ── Stars ──
-  {
-    id: "stars",
-    category: "stars",
-    title: "Individual Brilliance",
-    subtitle: "Players who carried their nations",
-    icon: SparklesIcon,
-    accent: "from-orange-500/20 to-amber-500/5",
-    items: [
-      "Lionel Messi carrying Argentina once again to a World Cup final at 39",
-      "Kylian Mbappé producing another elite tournament — records shattered",
-      "Spain's defense emerging as the tournament's defining tactical story",
-      "Argentina mounting another miraculous comeback in a World Cup semi-final",
-    ],
-  },
-  // ── Controversies ──
   {
     id: "controversies",
-    category: "controversies",
-    title: "The Talking Points",
-    subtitle: "Decisions and debates that divided fans",
     icon: AlertDiamondIcon,
-    accent: "from-rose-500/20 to-red-500/5",
+    label: "Controversies",
+    title: "What divided fans",
     items: [
-      "VAR controversy — almost every knockout round sparked debate. Long reviews, inconsistent decisions, marginal offsides.",
-      "Connected Ball Technology — goals and offside calls decided by ball sensors drew heavy criticism.",
-      "Hydration breaks — cooling breaks interrupted match flow, splitting opinion worldwide.",
-      "Extreme heat — players and coaches repeatedly raised concerns about player safety.",
-      "Argentina's \"Las Malvinas\" banner post-semi-final — FIFA investigation sparked.",
-      "Skycam debate — questions raised over whether a cable influenced officiating in a knockout match.",
-      "Third-place playoff criticism — many fans and coaches called for FIFA to scrap it.",
+      { text: "VAR controversy in almost every knockout round", sub: "Long reviews, inconsistent calls, marginal offsides" },
+      { text: "Connected Ball Technology decided key goals and offsides", sub: "Criticism that decisions became overly technical" },
+      { text: "Hydration breaks interrupted match flow", sub: "Mandatory cooling breaks sparked debate" },
+      { text: "Extreme heat raised player safety concerns" },
+      { text: "Argentina's Las Malvinas banner post-semi-final", sub: "FIFA investigation sparked" },
+      { text: "Skycam cable controversy in one knockout match" },
+      { text: "Third-place playoff criticised by coaches and fans" },
     ],
   },
-  // ── Stories ──
   {
     id: "stories",
-    category: "stories",
-    title: "The Big Storylines",
-    subtitle: "What we'll remember",
     icon: BookOpen01Icon,
-    accent: "from-teal-500/20 to-cyan-500/5",
-    featured: true,
+    label: "Storylines",
+    title: "What we'll remember",
     items: [
-      "Messi chasing another World Cup title at 39 — and leading Argentina to the final",
-      "Spain reaching the final with one of the tournament's best defensive records",
-      "Argentina defending their World Cup crown",
-      "England falling just short in another semi-final",
-      "Smaller nations proving they can compete with football's traditional powers",
-      "The first 48-team World Cup changing the scale and rhythm of the game forever",
+      { text: "Messi chasing another World Cup title at 39" },
+      { text: "Spain reaching the final with the tournament's best defensive record", flag: "ES" },
+      { text: "Argentina defending their World Cup crown", flag: "AR" },
+      { text: "England falling just short in the semi-final again", flag: "GB" },
+      { text: "Smaller nations proving they belong at the top table" },
+      { text: "A 48-team format that changed the tournament forever" },
     ],
   },
 ];
 
-const CATEGORY_LABELS: Record<MomentCategory, string> = {
-  history:       "History",
-  records:       "Records",
-  upsets:        "Upsets",
-  matches:       "Matches",
-  stars:         "Stars",
-  controversies: "Controversies",
-  stories:       "Stories",
-};
-
-// ── AI Chat ───────────────────────────────────────────────────────────────────
+// ── AI ────────────────────────────────────────────────────────────────────────
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
 
-interface ChatMessage {
+const WC_CONTEXT = `You are a 2026 FIFA World Cup expert for the Pulse app. Only answer questions about the 2026 FIFA World Cup. If asked about anything else, politely say you only cover the 2026 World Cup.
+
+Key facts:
+- First 48-team World Cup hosted by USA, Canada and Mexico, 104 matches
+- Argentina reached the final (Messi, 39, became all-time WC top scorer, most appearances)  
+- Spain reached the final with the best defensive record, beat France 2-0 in semi-final
+- Ronaldo: first player to appear in 6 World Cups
+- Mbappé: broke French WC scoring records, scored in every WC he's played
+- Big upsets: Morocco beat Netherlands, Norway beat Brazil, Paraguay beat Germany (all on penalties)
+- Key matches: Argentina 3-2 Cape Verde, Belgium 3-2 Senegal, England 3-2 Mexico, Argentina 2-1 England (SF), Spain 2-0 France (SF)
+- Controversies: VAR debates, Connected Ball Technology, extreme heat, hydration breaks, Las Malvinas banner
+- Cape Verde and Colombia were the tournament's Cinderella stories
+
+Keep answers under 3 sentences. Be direct and confident.`;
+
+async function askAI(question: string): Promise<string> {
+  try {
+    const res = await fetch(`${BASE_URL}/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: `${WC_CONTEXT}\n\nUser: ${question}\nAssistant:`,
+        maxTokens: 150,
+      }),
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json() as { text: string };
+    return data.text || "I couldn't find an answer for that.";
+  } catch {
+    const q = question.toLowerCase();
+    if (q.includes("messi")) return "Messi became the all-time World Cup top scorer at the 2026 tournament, leading Argentina to the final at age 39.";
+    if (q.includes("ronaldo")) return "Ronaldo made history by appearing in six World Cups — a record that may never be broken.";
+    if (q.includes("mbapp")) return "Mbappé broke multiple French scoring records and continued his streak of scoring in every World Cup he has played.";
+    if (q.includes("spain")) return "Spain reached the final with the tournament's best defensive record, beating France 2–0 in the semi-final.";
+    if (q.includes("argentina")) return "Argentina, led by Messi, reached the final once again — beating England 2–1 in the semi-final.";
+    if (q.includes("upset") || q.includes("surprise")) return "Morocco beat the Netherlands, Norway beat Brazil, and Paraguay beat Germany — all on penalties.";
+    if (q.includes("var")) return "VAR was heavily criticised throughout — long reviews, inconsistent decisions and marginal offsides featured in almost every knockout round.";
+    return "Ask me anything about the 2026 World Cup — records, upsets, key matches, or controversies.";
+  }
+}
+
+// ── Section row ───────────────────────────────────────────────────────────────
+
+function SectionRow({ section }: { section: Section }) {
+  const [expanded, setExpanded] = useState(false);
+  const Icon = section.icon;
+  const preview = section.items.slice(0, 3);
+  const rest = section.items.slice(3);
+
+  return (
+    <div className="border-b border-border last:border-0">
+      {/* Section header */}
+      <div className="flex items-center gap-3 py-4">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--color-elevated)] border border-border">
+          <Icon size={15} strokeWidth={1.75} className="text-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{section.label}</p>
+          <h3 className="font-display text-[14px] font-bold text-foreground leading-tight">{section.title}</h3>
+        </div>
+      </div>
+
+      {/* Items */}
+      <div className="pb-4 space-y-2.5 pl-11">
+        {preview.map((item, i) => (
+          <ItemRow key={i} item={item} />
+        ))}
+        {expanded && rest.map((item, i) => (
+          <ItemRow key={`r${i}`} item={item} />
+        ))}
+        {rest.length > 0 && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors mt-1"
+          >
+            {expanded
+              ? <><ArrowUp01Icon size={11} strokeWidth={2} />Show less</>
+              : <><ArrowDown01Icon size={11} strokeWidth={2} />{rest.length} more</>
+            }
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ItemRow({ item }: { item: Item }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      {item.flag
+        ? <Flag code={item.flag} size={13} className="mt-0.5 shrink-0" />
+        : <span className="mt-2 h-1 w-1 rounded-full bg-muted-foreground/40 shrink-0" />
+      }
+      <div>
+        <p className="text-[13px] text-foreground leading-snug">{item.text}</p>
+        {item.sub && <p className="text-[11px] text-muted-foreground mt-0.5">{item.sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Floating AI input ─────────────────────────────────────────────────────────
+
+interface AIMessage {
   role: "user" | "ai";
   text: string;
 }
 
-const CONTEXT = `You are a World Cup 2026 expert analyst assistant for the Pulse app.
-Here are the key moments from the 2026 FIFA World Cup:
-- First-ever 48-team tournament, hosted by USA, Canada & Mexico, 104 matches
-- Argentina reached the final (Messi, 39, became all-time World Cup top scorer)
-- Spain reached the final with the best defensive record
-- Upsets: Morocco beat Netherlands, Norway beat Brazil, Paraguay beat Germany
-- Messi: all-time World Cup goalscorer, most appearances, oldest multi-goal scorer
-- Ronaldo: appeared in six World Cups (record)
-- Mbappé: broke French scoring records, continued knockout-stage streak
-- Key matches: Argentina 3-2 Cape Verde, Belgium 3-2 Senegal, England 3-2 Mexico, Argentina 2-1 England (SF), Spain 2-0 France (SF)
-- Controversies: VAR debates, Connected Ball Technology, extreme heat, hydration breaks
-Answer questions about this World Cup confidently and concisely. Keep answers under 3 sentences unless more detail is asked.`;
-
-async function askAI(messages: ChatMessage[]): Promise<string> {
-  try {
-    const history = messages
-      .slice(-6)
-      .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.text}`)
-      .join("\n");
-
-    const prompt = `${CONTEXT}\n\nConversation:\n${history}\n\nAssistant:`;
-
-    const res = await fetch(`${BASE_URL}/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens: 150 }),
-    });
-
-    if (!res.ok) throw new Error("AI unavailable");
-    const data = await res.json() as { text: string };
-    return data.text ?? "I couldn't find an answer for that.";
-  } catch {
-    // Fallback: simple keyword matching
-    const last = messages[messages.length - 1]?.text.toLowerCase() ?? "";
-    if (last.includes("messi")) return "Messi became the all-time World Cup top scorer at the 2026 tournament, leading Argentina to the final at age 39.";
-    if (last.includes("ronaldo")) return "Ronaldo made history by appearing in six World Cups — a record that may never be broken.";
-    if (last.includes("mbapp")) return "Mbappé broke multiple French scoring records and continued his remarkable streak of scoring in every World Cup.";
-    if (last.includes("spain")) return "Spain reached the final with one of the tournament's best defensive records, beating France 2-0 in the semi-final.";
-    if (last.includes("argentina")) return "Argentina, led by Messi, reached the final once again — beating England 2-1 in the semi-final in a dramatic match.";
-    if (last.includes("upset") || last.includes("surprise")) return "The biggest upsets were Morocco eliminating the Netherlands and Norway knocking out Brazil in the Round of 16.";
-    if (last.includes("var")) return "VAR controversy was a major theme — almost every knockout round featured debate about long reviews, inconsistent decisions and marginal offsides.";
-    return "I can answer questions about the 2026 World Cup — records, upsets, key matches, and more. Try asking about Messi, Spain, or the biggest upsets!";
-  }
-}
-
-// ── Card component ────────────────────────────────────────────────────────────
-
-function MomentCard({ moment }: { moment: Moment }) {
-  const [expanded, setExpanded] = useState(false);
-  const Icon = moment.icon;
-  const preview = moment.items.slice(0, 3);
-  const rest = moment.items.slice(3);
-
-  return (
-    <div
-      className={[
-        "group relative overflow-hidden rounded-2xl border border-border/60 transition-all duration-300",
-        "hover:border-border hover:shadow-lg hover:shadow-black/20",
-        "bg-gradient-to-br",
-        moment.accent,
-        "bg-[var(--color-elevated)]",
-      ].join(" ")}
-      style={{ background: "var(--color-elevated)" }}
-    >
-      {/* Gradient overlay */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${moment.accent} pointer-events-none`} />
-
-      <div className="relative p-4 lg:p-5">
-        {/* Header */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background/30 backdrop-blur-sm">
-            <Icon size={17} strokeWidth={1.75} className="text-foreground" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              {moment.flag && (
-                <Flag code={moment.flag.toUpperCase()} size={14} />
-              )}
-              <h3 className="font-display text-[14px] font-bold text-foreground leading-tight">
-                {moment.title}
-              </h3>
-              {moment.featured && (
-                <span className="flex items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-foreground">
-                  <ChampionIcon size={8} strokeWidth={2} />
-                  Historic
-                </span>
-              )}
-            </div>
-            {moment.subtitle && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">{moment.subtitle}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Items */}
-        <ul className="space-y-2">
-          {preview.map((item, i) => (
-            <li key={i} className="flex items-start gap-2.5 text-[12px] leading-relaxed text-foreground/85">
-              <span className="mt-1.5 h-1 w-1 rounded-full bg-foreground/30 shrink-0" />
-              {item}
-            </li>
-          ))}
-        </ul>
-
-        {/* Expandable rest */}
-        {rest.length > 0 && (
-          <>
-            {expanded && (
-              <ul className="mt-2 space-y-2">
-                {rest.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-[12px] leading-relaxed text-foreground/85 animate-fade-up">
-                    <span className="mt-1.5 h-1 w-1 rounded-full bg-foreground/30 shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {expanded ? (
-                <>
-                  <ArrowUp01Icon size={12} strokeWidth={2} />
-                  Show less
-                </>
-              ) : (
-                <>
-                  <ArrowRight01Icon size={12} strokeWidth={2} />
-                  {rest.length} more
-                </>
-              )}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── AI Chat Drawer ────────────────────────────────────────────────────────────
-
-function AIChatDrawer({ onClose }: { onClose: () => void }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "ai", text: "Ask me anything about the 2026 World Cup — records, upsets, controversial moments, star performances. I've got you." },
-  ]);
+function FloatingAI() {
+  const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<AIMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 80);
+  }, [open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 100);
-    return () => clearTimeout(t);
-  }, []);
-
-  const SUGGESTIONS = [
-    "What did Messi achieve?",
-    "Biggest upset of the tournament?",
-    "What records did Ronaldo break?",
-    "Who reached the final?",
-  ];
-
-  async function send(text: string) {
-    if (!text.trim() || loading) return;
-    const userMsg: ChatMessage = { role: "user", text: text.trim() };
-    setMessages((m) => [...m, userMsg]);
+  async function send() {
+    const q = input.trim();
+    if (!q || loading) return;
     setInput("");
+    setMessages((m) => [...m, { role: "user", text: q }]);
     setLoading(true);
-    const aiText = await askAI([...messages, userMsg]);
-    setMessages((m) => [...m, { role: "ai", text: aiText }]);
+    const answer = await askAI(q);
+    setMessages((m) => [...m, { role: "ai", text: answer }]);
     setLoading(false);
   }
 
+  const CHIPS = ["What did Messi achieve?", "Biggest upset?", "Who reached the final?", "VAR controversy?"];
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end lg:items-end lg:justify-center lg:p-6">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Panel */}
-      <div
-        className="relative w-full lg:w-[420px] rounded-t-3xl lg:rounded-2xl border border-border flex flex-col overflow-hidden animate-scale-in"
-        style={{ background: "var(--panel)", maxHeight: "85dvh" }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/20">
-              <SparklesIcon size={14} strokeWidth={1.75} className="text-violet-400" />
-            </div>
-            <div>
-              <p className="text-[13px] font-bold text-foreground">Ask about the World Cup</p>
-              <p className="text-[10px] text-muted-foreground">AI · Powered by Groq</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-[var(--color-elevated)] transition-colors"
+    <>
+      {/* Floating bar at bottom */}
+      <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-4">
+        {/* Chat bubble when open */}
+        {open && (
+          <div
+            className="mb-2 rounded-2xl border border-border overflow-hidden shadow-2xl shadow-black/40 animate-scale-in"
+            style={{ background: "var(--panel)" }}
           >
-            <Cancel01Icon size={15} strokeWidth={2} />
-          </button>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={[
-                  "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed",
-                  msg.role === "user"
-                    ? "bg-foreground text-background rounded-br-sm"
-                    : "bg-[var(--color-elevated)] text-foreground rounded-bl-sm border border-border/60",
-                ].join(" ")}
-              >
-                {msg.text}
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <SparklesIcon size={13} strokeWidth={1.75} className="text-muted-foreground" />
+                <span className="text-[12px] font-semibold text-foreground">Ask about the 2026 World Cup</span>
               </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="rounded-2xl rounded-bl-sm border border-border/60 bg-[var(--color-elevated)] px-3.5 py-2.5">
-                <span className="flex gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-bounce"
-                      style={{ animationDelay: `${i * 150}ms` }}
-                    />
-                  ))}
-                </span>
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Suggestions */}
-        {messages.length === 1 && (
-          <div className="px-4 pb-2 flex flex-wrap gap-1.5 shrink-0">
-            {SUGGESTIONS.map((s) => (
               <button
-                key={s}
-                onClick={() => send(s)}
-                className="rounded-full border border-border bg-[var(--color-elevated)] px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors"
+                onClick={() => setOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
-                {s}
+                <Cancel01Icon size={14} strokeWidth={2} />
               </button>
-            ))}
+            </div>
+
+            {/* Messages */}
+            {messages.length > 0 && (
+              <div className="max-h-56 overflow-y-auto px-4 py-3 space-y-2.5">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <p className={[
+                      "max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed",
+                      msg.role === "user"
+                        ? "bg-foreground text-background rounded-br-sm"
+                        : "bg-[var(--color-elevated)] text-foreground rounded-bl-sm",
+                    ].join(" ")}>
+                      {msg.text}
+                    </p>
+                  </div>
+                ))}
+                {loading && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl rounded-bl-sm bg-[var(--color-elevated)] px-3.5 py-2.5 flex gap-1">
+                      {[0,1,2].map(i => (
+                        <span key={i} className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 animate-bounce"
+                          style={{ animationDelay: `${i * 120}ms` }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div ref={bottomRef} />
+              </div>
+            )}
+
+            {/* Quick chips — only when no messages yet */}
+            {messages.length === 0 && (
+              <div className="px-4 py-3 flex flex-wrap gap-1.5">
+                {CHIPS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => { setInput(c); setTimeout(() => inputRef.current?.focus(), 50); }}
+                    className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors"
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Input */}
-        <div className="px-4 pb-4 pt-2 border-t border-border shrink-0">
-          <form
-            onSubmit={(e) => { e.preventDefault(); send(input); }}
-            className="flex items-center gap-2 rounded-2xl border border-border bg-[var(--color-elevated)] px-3 py-2"
-          >
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything…"
-              className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
-            />
+        {/* Input bar */}
+        <div
+          className="flex items-center gap-2 rounded-2xl border border-border px-4 py-3 shadow-xl shadow-black/30"
+          style={{ background: "var(--panel)" }}
+        >
+          <SparklesIcon size={14} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />
+          <input
+            ref={inputRef}
+            value={input}
+            onFocus={() => setOpen(true)}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") send(); }}
+            placeholder="Ask anything about the 2026 World Cup…"
+            className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+          />
+          {input.trim() && (
             <button
-              type="submit"
-              disabled={!input.trim() || loading}
-              className="flex h-7 w-7 items-center justify-center rounded-xl bg-foreground text-background transition-opacity disabled:opacity-40"
+              onClick={send}
+              disabled={loading}
+              className="flex h-7 w-7 items-center justify-center rounded-xl bg-foreground text-background transition-opacity disabled:opacity-40 shrink-0"
             >
-              <SentIcon size={13} strokeWidth={2} />
+              <SentIcon size={12} strokeWidth={2} />
             </button>
-          </form>
+          )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Filter pill ────────────────────────────────────────────────────────────────
-
-function FilterPill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={[
-        "rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all whitespace-nowrap",
-        active
-          ? "bg-foreground text-background"
-          : "bg-[var(--color-elevated)] text-muted-foreground hover:text-foreground",
-      ].join(" ")}
-    >
-      {label}
-    </button>
+    </>
   );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function MomentsPage() {
-  const [filter, setFilter] = useState<MomentCategory | "all">("all");
-  const [chatOpen, setChatOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<string>("all");
 
-  const displayed = filter === "all"
-    ? MOMENTS
-    : MOMENTS.filter((m) => m.category === filter);
-
-  const featured = displayed.filter((m) => m.featured);
-  const regular  = displayed.filter((m) => !m.featured);
+  const displayed = activeFilter === "all"
+    ? SECTIONS
+    : SECTIONS.filter(s => s.id === activeFilter);
 
   return (
     <>
       <TopBar title="Moments" />
-      <div className="mx-auto max-w-2xl px-4 py-5 lg:px-5 lg:py-8">
+      <div className="mx-auto max-w-xl px-4 py-5 lg:px-5 lg:py-8 pb-40">
 
-        {/* Hero header */}
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <ChampionIcon size={18} strokeWidth={1.75} className="text-amber-400" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                2026 FIFA World Cup
-              </span>
-            </div>
-            <h1 className="font-display text-[22px] font-bold text-foreground tracking-tight leading-tight">
-              History Made
-            </h1>
-            <p className="mt-1 text-[12px] text-muted-foreground max-w-sm">
-              Records shattered. Upsets that stunned the world. Moments that will be talked about for decades.
-            </p>
+        {/* Header */}
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <ChampionIcon size={15} strokeWidth={1.75} className="text-muted-foreground" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">2026 FIFA World Cup</span>
           </div>
-
-          {/* AI ask button */}
-          <button
-            onClick={() => setChatOpen(true)}
-            className="shrink-0 flex items-center gap-2 rounded-2xl border border-violet-500/30 bg-violet-500/10 px-3.5 py-2.5 text-[11px] font-semibold text-violet-300 hover:bg-violet-500/20 transition-colors"
-          >
-            <SparklesIcon size={13} strokeWidth={1.75} />
-            Ask AI
-          </button>
+          <h1 className="font-display text-[20px] font-bold text-foreground tracking-tight">History Made</h1>
+          <p className="mt-1 text-[12px] text-muted-foreground">
+            Records, upsets and moments that will be talked about for decades.
+          </p>
         </div>
 
-        {/* Filter bar */}
-        <div className="mb-6 -mx-4 px-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-          <FilterPill active={filter === "all"} label="All" onClick={() => setFilter("all")} />
-          {(Object.keys(CATEGORY_LABELS) as MomentCategory[]).map((cat) => (
-            <FilterPill
-              key={cat}
-              active={filter === cat}
-              label={CATEGORY_LABELS[cat]}
-              onClick={() => setFilter(cat)}
-            />
+        {/* Filter pills */}
+        <div className="-mx-4 px-4 mb-5 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+          {[{ id: "all", label: "All" }, ...SECTIONS.map(s => ({ id: s.id, label: s.label }))].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setActiveFilter(f.id)}
+              className={[
+                "shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all",
+                activeFilter === f.id
+                  ? "bg-foreground text-background"
+                  : "bg-[var(--color-elevated)] text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              {f.label}
+            </button>
           ))}
         </div>
 
-        {/* Featured cards — full width */}
-        {featured.length > 0 && (
-          <div className="mb-4 space-y-3">
-            {featured.map((m) => (
-              <MomentCard key={m.id} moment={m} />
+        {/* Sections — clean single column list */}
+        <div className="rounded-2xl border border-border overflow-hidden" style={{ background: "var(--color-elevated)" }}>
+          <div className="divide-y divide-border px-4">
+            {displayed.map(section => (
+              <SectionRow key={section.id} section={section} />
             ))}
           </div>
-        )}
-
-        {/* Regular cards — 2-col grid on desktop */}
-        {regular.length > 0 && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {regular.map((m) => (
-              <MomentCard key={m.id} moment={m} />
-            ))}
-          </div>
-        )}
+        </div>
 
         {/* Footer */}
-        <div className="mt-8 flex items-center justify-center gap-2 text-[10px] text-muted-foreground/40">
-          <Award01Icon size={12} strokeWidth={1.75} />
+        <div className="mt-6 flex items-center justify-center gap-2 text-[10px] text-muted-foreground/40">
+          <Award01Icon size={11} strokeWidth={1.75} />
           <span>2026 FIFA World Cup · USA, Canada &amp; Mexico</span>
         </div>
       </div>
 
-      {/* AI Chat */}
-      {chatOpen && <AIChatDrawer onClose={() => setChatOpen(false)} />}
+      <FloatingAI />
     </>
   );
 }
