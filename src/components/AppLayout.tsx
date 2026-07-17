@@ -288,7 +288,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <img
                   src="/solana.png"
                   alt="Solana"
-                  className="h-7 max-w-[120px] object-contain shrink-0"
+                  className="h-16 w-16 object-contain shrink-0"
                 />
               </a>
               {/* SuperTeam logo */}
