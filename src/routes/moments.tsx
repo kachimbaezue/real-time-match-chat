@@ -20,8 +20,10 @@ import {
 export const Route = createFileRoute("/moments")({
   head: () => ({
     meta: [
-      { title: "Moments — Pulse" },
-      { name: "description", content: "History-making moments from the 2026 FIFA World Cup." },
+      { title: "Moments — Pulse | 2026 FIFA World Cup History" },
+      { name: "description", content: "History-making records, biggest upsets and defining moments from the 2026 FIFA World Cup. Ask our AI anything about the tournament." },
+      { property: "og:title", content: "Moments — Pulse" },
+      { property: "og:description", content: "Records shattered. Upsets that stunned the world. The 2026 World Cup moments that will be talked about for decades." },
     ],
   }),
   component: MomentsPage,
@@ -523,7 +525,7 @@ function FilterPill({ active, label, onClick }: { active: boolean; label: string
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function MomentsPage() {
+function MomentsPage() {
   const [filter, setFilter] = useState<MomentCategory | "all">("all");
   const [chatOpen, setChatOpen] = useState(false);
 

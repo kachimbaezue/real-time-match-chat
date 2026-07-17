@@ -18,8 +18,10 @@ import {
 export const Route = createFileRoute("/hot")({
   head: () => ({
     meta: [
-      { title: "Hot — Pulse" },
-      { name: "description", content: "Live World Cup thread — goals, red cards, AI reads. Powered by TxLINE." },
+      { title: "Hot Feed — Pulse | Live World Cup Thread" },
+      { name: "description", content: "Real-time World Cup thread — goals, red cards, AI reads and live match insights. Powered by TxLINE data." },
+      { property: "og:title", content: "Hot Feed — Pulse" },
+      { property: "og:description", content: "Live World Cup goals, cards and AI commentary as it happens." },
     ],
   }),
   component: HotPage,
@@ -329,7 +331,7 @@ function EmptyThread({ filter }: { filter: FilterType }) {
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
-export default function HotPage() {
+function HotPage() {
   const [feed, setFeed] = useState<HotFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

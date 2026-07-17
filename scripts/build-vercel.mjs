@@ -120,8 +120,13 @@ const config = {
       headers: { "Cache-Control": "public, max-age=31536000, immutable" },
       continue: true,
     },
-    // Let the filesystem serve what it has (images, robots.txt, etc.)
+    // Let the filesystem serve what it has (images, favicon, robots.txt, etc.)
     { handle: "filesystem" },
+    // Explicitly catch common static file extensions — never SSR these
+    {
+      src: "^/.+\\.(ico|png|jpg|jpeg|svg|gif|webp|mp4|webm|woff2?|ttf|otf|txt|xml|json)$",
+      status: 404,
+    },
     // Fallback: all unmatched requests → SSR
     { src: "/(.*)", dest: "/index" },
   ],
