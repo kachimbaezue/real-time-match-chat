@@ -247,12 +247,9 @@ function AIWidget() {
         <div className="h-1 w-10 rounded-full bg-border" />
       </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
-        <div>
-          <p className="text-[11px] font-medium text-muted-foreground">2026 FIFA World Cup</p>
-          <p className="text-[18px] font-bold text-foreground leading-tight mt-0.5">How can we help?</p>
-        </div>
+      {/* Header — just the X, no subtitle/tagline */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-1 shrink-0">
+        <p className="text-[18px] font-bold text-foreground leading-tight">How can we help?</p>
         <button
           onClick={() => setOpen(false)}
           className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
@@ -361,26 +358,37 @@ function AIWidget() {
         </div>
       )}
 
-      {/* ── Desktop: floating card above the pill ── */}
+      {/* ── Desktop: floating card above the pill — with gap ── */}
       {open && (
         <div
-          className="hidden lg:block fixed z-50 bottom-20 right-6 w-[380px] animate-scale-in"
-          style={{ transformOrigin: "bottom right" }}
+          className="hidden lg:block fixed z-50 w-[380px] animate-scale-in"
+          style={{
+            bottom: "calc(2.5rem + 44px + 12px)", /* pill bottom + pill height + gap */
+            right: "1.5rem",
+            transformOrigin: "bottom right",
+          }}
         >
           {card}
         </div>
       )}
 
-      {/* Fixed pill button — bottom-right, like "Help" in the image */}
-      <div className="fixed bottom-24 right-4 lg:bottom-8 lg:right-6 z-50">
+      {/* Fixed button — bottom-right, moderate radius, white bg with double border */}
+      <div className="fixed bottom-24 right-4 lg:bottom-10 lg:right-6 z-50">
         <button
           onClick={() => setOpen(v => !v)}
-          className={[
-            "flex items-center gap-2 rounded-full border px-5 py-2.5 text-[13px] font-semibold transition-all shadow-lg",
-            open
-              ? "bg-foreground text-background border-foreground"
-              : "bg-[var(--panel)] text-foreground border-border hover:border-foreground/30 shadow-black/30",
-          ].join(" ")}
+          style={{
+            background: "white",
+            color: "#000",
+            borderRadius: 10,
+            /* double border: white outer ring + thin black line */
+            boxShadow: "0 0 0 2px white, 0 0 0 3px rgba(0,0,0,0.85), 0 4px 20px rgba(0,0,0,0.35)",
+            border: "none",
+            padding: "10px 20px",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "transform 0.15s, box-shadow 0.15s",
+          }}
         >
           Ask AI
         </button>
@@ -575,7 +583,6 @@ function MomentsPage() {
         </div>
       </div>
 
-      {aiOpen && <AIDrawer onClose={() => setAiOpen(false)} />}
       <AIWidget />
     </>
   );
