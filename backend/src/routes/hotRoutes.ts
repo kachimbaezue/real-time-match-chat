@@ -85,7 +85,7 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
           text = buildEventText(ev, teamName, match);
           aiTextCache.set(cacheKey, text);
           // Enrich with Groq AI in background for next request
-          enrichEventText(ev, { ...ev, team: ev.team ?? '' }, teamName, match, cacheKey).catch(() => {});
+          enrichEventText({ ...ev, team: ev.team ?? '' }, teamName, match, cacheKey).catch(() => {});
         }
 
         feed.push({

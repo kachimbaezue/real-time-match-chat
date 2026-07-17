@@ -99,7 +99,8 @@ function mapEventType(t: string): string {
 }
 
 function getId(req: Request): string {
-  return String(req.params.id);
+  const id = req.params['id'];
+  return Array.isArray(id) ? id[0] : String(id);
 }
 
 export class MatchController {
@@ -233,7 +234,7 @@ export class MatchController {
     try {
       const { txLineClient } = await import('../txline/TxLineClient');
       const { MatchNormalizer } = await import('../services/MatchNormalizer');
-      const fixtureId = parseInt(req.params.id, 10);
+      const fixtureId = parseInt(getId(req), 10);
 
       const rawScores = await txLineClient.getScoresSnapshot(fixtureId);
       const rawFixture = (await txLineClient.getFixtures()).find((f: any) => f.FixtureId === fixtureId);
