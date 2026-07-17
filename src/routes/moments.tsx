@@ -198,12 +198,15 @@ const CHIPS = ["What did Messi achieve?", "Biggest upset?", "Who reached the fin
  * - Card: large border-radius (like the image), ~Google-bar height for input
  */
 function AIWidget() {
-  const [open, setOpen]     = useState(false);
-  const [msgs, setMsgs]     = useState<ChatMsg[]>([]);
-  const [input, setInput]   = useState("");
+  const [open, setOpen]       = useState(false);
+  const [msgs, setMsgs]       = useState<ChatMsg[]>([]);
+  const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
   const inputRef  = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // true = showing chat, false = showing chips
+  const hasConversation = msgs.length > 0;
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
@@ -236,20 +239,31 @@ function AIWidget() {
       className="flex flex-col overflow-hidden"
       style={{
         background: "var(--panel)",
-        // big radius like the reference image
         borderRadius: 20,
+        /* fixed height on desktop so it never grows/shrinks */
+        height: "clamp(320px, 480px, 480px)",
         boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)",
       }}
       onClick={e => e.stopPropagation()}
     >
-      {/* Drag handle (mobile only) */}
+      {/* Mobile drag handle */}
       <div className="flex justify-center pt-3 pb-1 lg:hidden shrink-0">
         <div className="h-1 w-10 rounded-full bg-border" />
       </div>
 
-      {/* Header — just the X, no subtitle/tagline */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-1 shrink-0">
-        <p className="text-[18px] font-bold text-foreground leading-tight">How can we help?</p>
+      {/* Header — back arrow when chatting, X always */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+        <div className="flex items-center gap-2">
+          {hasConversation && (
+            <button
+              onClick={() => setMsgs([])}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors -ml-1"
+              aria-label="Back to suggestions"
+            >
+              <ArrowDown01Icon size={15} strokeWidth={2} className="rotate-90" />
+            </button>
+          )}
+        </div>
         <button
           onClick={() => setOpen(false)}
           className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
@@ -258,10 +272,11 @@ function AIWidget() {
         </button>
       </div>
 
-      {/* Chips or messages */}
+      {/* Body — scrollable, fixed height */}
       <div className="flex-1 overflow-y-auto px-5 pb-2 min-h-0">
-        {msgs.length === 0 ? (
-          <div className="space-y-1 py-1">
+        {!hasConversation ? (
+          /* Chip suggestions */
+          <div className="space-y-1">
             {CHIPS.map((c, i) => (
               <button
                 key={c}
@@ -280,7 +295,8 @@ function AIWidget() {
             ))}
           </div>
         ) : (
-          <div className="space-y-2.5 py-2">
+          /* Chat thread */
+          <div className="space-y-2.5 py-1">
             {msgs.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <p className={[
@@ -308,7 +324,7 @@ function AIWidget() {
         )}
       </div>
 
-      {/* Input — Google-bar height, same large radius */}
+      {/* Input */}
       <div className="px-5 pb-5 pt-2 shrink-0">
         <form
           onSubmit={e => { e.preventDefault(); send(); }}
@@ -338,7 +354,6 @@ function AIWidget() {
 
   return ReactDOM.createPortal(
     <>
-      {/* Backdrop when open */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm animate-fade-in"
@@ -346,24 +361,24 @@ function AIWidget() {
         />
       )}
 
-      {/* ── Mobile: bottom drawer ── */}
+      {/* Mobile: full-screen bottom drawer */}
       {open && (
         <div
-          className="fixed inset-x-0 bottom-0 z-50 flex flex-col lg:hidden animate-slide-up"
+          className="fixed inset-x-0 bottom-0 z-50 lg:hidden animate-slide-up"
           style={{ top: "5rem" }}
         >
-          <div className="flex-1 flex flex-col rounded-t-3xl overflow-hidden" style={{ background: "var(--panel)" }}>
+          <div className="h-full flex flex-col rounded-t-3xl overflow-hidden" style={{ background: "var(--panel)" }}>
             {card}
           </div>
         </div>
       )}
 
-      {/* ── Desktop: floating card above the pill — with gap ── */}
+      {/* Desktop: fixed-height floating card, gap above button */}
       {open && (
         <div
           className="hidden lg:block fixed z-50 w-[380px] animate-scale-in"
           style={{
-            bottom: "calc(2.5rem + 44px + 12px)", /* pill bottom + pill height + gap */
+            bottom: "calc(2.5rem + 44px + 16px)",
             right: "1.5rem",
             transformOrigin: "bottom right",
           }}
@@ -372,26 +387,31 @@ function AIWidget() {
         </div>
       )}
 
-      {/* Fixed button — bottom-right, moderate radius, white bg with double border */}
+      {/* Button — white bg, moderate radius, thin black ring with white gap */}
       <div className="fixed bottom-24 right-4 lg:bottom-10 lg:right-6 z-50">
-        <button
-          onClick={() => setOpen(v => !v)}
-          style={{
-            background: "white",
-            color: "#000",
-            borderRadius: 10,
-            /* double border: white outer ring + thin black line */
-            boxShadow: "0 0 0 2px white, 0 0 0 3px rgba(0,0,0,0.85), 0 4px 20px rgba(0,0,0,0.35)",
-            border: "none",
-            padding: "10px 20px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-            transition: "transform 0.15s, box-shadow 0.15s",
-          }}
-        >
-          Ask AI
-        </button>
+        {/* Outer white halo — creates the white gap effect */}
+        <div style={{ padding: 3, borderRadius: 13, background: "white", display: "inline-block" }}>
+          {/* Inner black border */}
+          <div style={{ padding: 1.5, borderRadius: 11, background: "black", display: "inline-block" }}>
+            <button
+              onClick={() => setOpen(v => !v)}
+              style={{
+                background: "white",
+                color: "#000",
+                borderRadius: 9,
+                border: "none",
+                padding: "9px 20px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "block",
+                lineHeight: 1.4,
+              }}
+            >
+              Ask AI
+            </button>
+          </div>
+        </div>
       </div>
     </>,
     document.body
