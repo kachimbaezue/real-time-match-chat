@@ -143,18 +143,22 @@ export class MatchEngine {
         wcAll = this.filterWorldCup(snapshot);
       }
 
-      const finished = wcAll.filter((f) => MatchNormalizer.isFixtureFinished(f.GameState));
+      const finished = wcAll.filter((f) => [5, 10, 13].includes(Number(f.GameState)));
       const live     = wcAll.filter((f) => [2,3,4,7,8,9,11,12].includes(Number(f.GameState)));
       const upcoming = wcAll.filter((f) => f.GameState === 1);
+      // GameState null/undefined = ambiguous — TxLINE sometimes sends null for live matches
+      // or genuinely finished ones.  Sync them via snapshot so events can resolve the real status.
+      const ambiguous = wcAll.filter((f) => f.GameState === null || f.GameState === undefined);
 
       logger.info(
-        `Snapshot: ${wcAll.length} WC fixtures — ${finished.length} finished, ${live.length} live, ${upcoming.length} upcoming`
+        `Snapshot: ${wcAll.length} WC fixtures — ${finished.length} finished, ${live.length} live, ${upcoming.length} upcoming, ${ambiguous.length} ambiguous (null GameState)`
       );
 
       await Promise.allSettled([
         ...finished.map((f) => this.syncFixture(f)),
         ...live.map((f) => this.syncFixture(f)),
         ...upcoming.map((f) => this.syncFixture(f)),
+        ...ambiguous.map((f) => this.syncFixture(f)),
       ]);
 
       // 2. Bootstrap known finished fixtures that dropped off the snapshot

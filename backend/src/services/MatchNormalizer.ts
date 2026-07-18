@@ -70,7 +70,8 @@ export class MatchNormalizer {
       case 12:  return 'PENALTIES';
       case 13:  return 'FINISHED';
       case 100: return 'FINISHED';   // game_finalised — confirmed from live data
-      default:  return 'NOT_STARTED';
+      // Unknown StatusId: return undefined so the caller can fall back to other signals
+      default:  return undefined as unknown as MatchStatus;
     }
   }
 
@@ -88,10 +89,17 @@ export class MatchNormalizer {
 
   /**
    * True when the fixture-level GameState means the match is over.
-   * TxLINE convention: absent/null GameState = finished fixture.
+   *
+   * NOTE: TxLINE historically used null/undefined to mean "finished", but
+   * live matches occasionally arrive with GameState=null when the phase has
+   * not been explicitly set on the fixture record yet.  We now treat
+   * null/undefined as "unknown" rather than "finished" so that syncFixture
+   * always fetches the full live snapshot — the normalizer then resolves the
+   * real status from the StatusId present inside the score events, which is
+   * always authoritative.
    */
   static isFixtureFinished(gameState?: number | null): boolean {
-    if (gameState === undefined || gameState === null) return true;
+    if (gameState === undefined || gameState === null) return false; // treat unknown as not-finished
     return [5, 10, 13].includes(gameState);
   }
 
@@ -148,7 +156,9 @@ export class MatchNormalizer {
     let status: MatchStatus;
     const highestStatusId = this.getHighestStatusId(events);
     if (highestStatusId !== undefined) {
-      status = this.statusIdToStatus(highestStatusId);
+      const resolved = this.statusIdToStatus(highestStatusId);
+      // statusIdToStatus returns undefined for unknown IDs — fall back below
+      status = resolved ?? this.fixtureGameStateToStatus(fixture.GameState as number | null | undefined);
     } else {
       // No events with StatusId — fall back to fixture GameState
       status = this.fixtureGameStateToStatus(fixture.GameState as number | null | undefined);
@@ -163,6 +173,22 @@ export class MatchNormalizer {
     }
     const minute = this.secondsToMinute(maxSeconds);
 
+    // ── Infer live status from clock time when status is still ambiguous ───
+    // If the match landed on NOT_STARTED or null/undefined but we have clock
+    // time > 0, the match has clearly kicked off — infer the phase from seconds.
+    if ((!status || status === 'NOT_STARTED') && maxSeconds > 0) {
+      if (maxSeconds > 90 * 60) {
+        status = 'EXTRA_TIME';
+      } else if (maxSeconds > 45 * 60) {
+        status = 'SECOND_HALF';
+      } else {
+        status = 'FIRST_HALF';
+      }
+    }
+
+    // Final safety net — default to NOT_STARTED if still unresolved
+    if (!status) status = 'NOT_STARTED';
+
     // ── Score from the Score.*.Total.Goals field on events ─────────────────
     // The Score object is present on key events and is always cumulative.
     // We take the latest event that has a Score with a Goals field.
@@ -170,6 +196,7 @@ export class MatchNormalizer {
 
     // ── Stats ───────────────────────────────────────────────────────────────
     const stats = this.extractStats(events, homeIsP1);
+
 
     // ── Timeline ────────────────────────────────────────────────────────────
     const timeline = this.buildTimeline(events, homeIsP1);
