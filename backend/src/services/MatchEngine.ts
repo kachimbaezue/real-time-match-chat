@@ -7,12 +7,8 @@ import { logger } from '../utils/logger';
 import { env, hasTxLineCredentials } from '../config/env';
 
 /**
- * Known World Cup 2026 fixture IDs that have already been played and will no
- * longer appear in the live fixture snapshot. These must be bootstrapped
- * directly from scores/snapshot so Recent matches show up.
- *
- * Add new IDs here as matches complete and drop off the TxLINE snapshot.
- * Source: confirmed via terminal — these had game_finalised (StatusId=100) events.
+ * Known finished fixture IDs to bootstrap directly (they drop off the snapshot).
+ * Only used when TXLINE_WC_COMPETITION_ID is set (i.e. mainnet WC mode).
  */
 const KNOWN_WC_FINISHED_FIXTURES: Array<{
   FixtureId: number;
@@ -109,8 +105,9 @@ export class MatchEngine {
 
   private isWorldCupFixture(fixture: TxFixture): boolean {
     const wcId = this.getWcCompetitionId();
-    if (wcId !== undefined) return fixture.CompetitionId === wcId;
-    return fixture.Competition?.includes('World Cup') ?? false;
+    // If no competition ID filter is set, accept all fixtures
+    if (wcId === undefined) return true;
+    return fixture.CompetitionId === wcId;
   }
 
   private filterWorldCup(fixtures: TxFixture[]): TxFixture[] {
@@ -149,7 +146,10 @@ export class MatchEngine {
       ]);
 
       // 2. Bootstrap known finished fixtures that dropped off the snapshot
-      await this.bootstrapKnownFinished();
+      // Only do this in mainnet WC mode (when a competition ID is configured)
+      if (wcId !== undefined) {
+        await this.bootstrapKnownFinished();
+      }
     } catch (err: any) {
       logger.error('Historical bootstrap failed', { error: err.message });
     }
