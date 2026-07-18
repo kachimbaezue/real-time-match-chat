@@ -105,9 +105,21 @@ export class MatchEngine {
 
   private isWorldCupFixture(fixture: TxFixture): boolean {
     const wcId = this.getWcCompetitionId();
-    // If no competition ID filter is set, accept all fixtures
-    if (wcId === undefined) return true;
-    return fixture.CompetitionId === wcId;
+    // If an explicit competition ID is set, use it as the filter
+    if (wcId !== undefined) return fixture.CompetitionId === wcId;
+
+    // Otherwise filter by competition name OR kickoff date within WC 2026 window
+    // WC 2026: June 11 – July 19, 2026 (with a small buffer either side)
+    const WC_START = new Date('2026-06-01').getTime();
+    const WC_END   = new Date('2026-07-31').getTime();
+
+    const isWcName = (fixture.Competition ?? '').toLowerCase().includes('world cup');
+    const startMs  = typeof fixture.StartTime === 'number'
+      ? fixture.StartTime
+      : new Date(fixture.StartTime ?? '').getTime();
+    const isInWindow = Number.isFinite(startMs) && startMs >= WC_START && startMs <= WC_END;
+
+    return isWcName || isInWindow;
   }
 
   private filterWorldCup(fixtures: TxFixture[]): TxFixture[] {
