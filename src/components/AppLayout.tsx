@@ -129,10 +129,13 @@ function SearchModal({ onClose }: { onClose: () => void }) {
           <Search01Icon size={17} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
+            id="search-query"
+            name="search-query"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search matches, teams, competitions…"
+            autoComplete="off"
             className="flex-1 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
           {query && (

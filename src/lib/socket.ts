@@ -21,11 +21,18 @@ export async function getSocketAsync(): Promise<Socket> {
   if (!_socket) {
     const { io } = await import("socket.io-client");
     _socket = io(SOCKET_URL, {
-      transports: ["websocket"],
+      // Try WebSocket first, fall back to polling if WS is blocked
+      transports: ["websocket", "polling"],
       autoConnect: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
+      // Cap retries — no point flooding the console when backend is warming up
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 30000,
+      timeout: 10000,
     });
+    // Suppress noisy connection error logs in the console —
+    // the reconnection logic handles recovery automatically.
+    _socket.on("connect_error", () => {/* silent — socket retries automatically */});
   }
   return _socket;
 }

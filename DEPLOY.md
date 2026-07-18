@@ -25,7 +25,7 @@ Vercel runs **serverless functions** — no persistent processes. It cannot host
    ```
    NODE_ENV=production
    PORT=3001
-   TXLINE_BASE_URL=https://txline-dev.txodds.com
+   TXLINE_BASE_URL=https://txline.txodds.com
    TXLINE_JWT=<your jwt>
    TXLINE_API_KEY=<your api key>
    TXLINE_WC_COMPETITION_ID=72

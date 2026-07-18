@@ -331,9 +331,12 @@ function AIWidget() {
         >
           <input
             ref={inputRef}
+            id="ai-chat-input"
+            name="ai-chat-input"
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Ask about the 2026 World Cup…"
+            autoComplete="off"
             className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
           />
           {input.trim() && (
@@ -542,11 +545,14 @@ function MomentsPage() {
             strokeWidth={1.75}
             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
           />
-          <input
+        <input
             ref={searchRef}
+            id="moments-search"
+            name="moments-search"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search moments, players, matches…"
+            autoComplete="off"
             className="block w-full min-w-0 rounded-2xl border border-border bg-[var(--color-elevated)] pl-9 pr-9 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-foreground/20 transition-colors"
           />
           {search && (

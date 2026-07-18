@@ -20,7 +20,9 @@ const root = path.resolve(__dirname, "..");
 
 const OUT = path.join(root, ".vercel", "output");
 const STATIC = path.join(OUT, "static");
-const CLIENT = path.join(root, "dist", "client");
+// Use dist/spa (SPA build via vite.config.spa.ts) if it exists, else fall back to dist/client
+const spaDir = path.join(root, "dist", "spa");
+const CLIENT = fs.existsSync(spaDir) ? spaDir : path.join(root, "dist", "client");
 
 // ── 1. Clean and recreate ────────────────────────────────────────────────────
 fs.rmSync(OUT, { recursive: true, force: true });
@@ -29,15 +31,61 @@ fs.mkdirSync(STATIC, { recursive: true });
 // ── 2. Copy all client assets ─────────────────────────────────────────────────
 copyDir(CLIENT, STATIC);
 
-// ── 3. Generate index.html if not already present ────────────────────────────
-// TanStack Start doesn't emit an index.html in SSR mode, so we build one
-// that bootstraps the client bundle.
+// ── 3. Patch all JS bundles ───────────────────────────────────────────────────
+// Fix env vars that may have compiled as empty strings, and patch hydrateRoot.
+const RENDER_URL = "https://real-time-match-chat.onrender.com";
+const assetsDir = path.join(STATIC, "assets");
+const allAssets = fs.readdirSync(assetsDir);
+
+for (const file of allAssets) {
+  if (!file.endsWith(".js")) continue;
+  const filePath = path.join(assetsDir, file);
+  let src = fs.readFileSync(filePath, "utf8");
+  let changed = false;
+
+  // Fix empty VITE_SOCKET_URL (compiled as empty string var r=``)
+  // Pattern: var r=``; followed by socket connection code (i=null, async function a())
+  if (/var r=``,i=null/.test(src) || (/var r=``/.test(src) && src.includes("reconnectionDelay"))) {
+    src = src.replace(/var r=``/, `var r="${RENDER_URL}"`);
+    changed = true;
+    console.log(`✅  Patched socket URL in ${file}`);
+  }
+
+  // Fix empty VITE_API_URL — compiled as empty backtick string before fetch calls
+  // Pattern: var y=``; (or similar var name) right before fetch('/matches/live')
+  if (/var [a-z]=``,/.test(src) && src.includes("/matches/live")) {
+    src = src.replace(/var ([a-z])=``;(async function)/, (m, varName, rest) => {
+      return `var ${varName}="${RENDER_URL}";${rest}`;
+    });
+    // Also try simpler pattern
+    src = src.replace(/(var [a-z]=``)(`\$\{[a-z]\}\/matches)/, (m, urlVar, pathPart) => {
+      return `${urlVar.replace("``", `"${RENDER_URL}"`)}${pathPart}`;
+    });
+    // Most reliable: find the exact empty string var right before fetch usage
+    src = src.replace(/var ([a-z])=``([\s\S]{0,50}?async function [a-z]\(e\)\{let [a-z]=new AbortController)/, (m, varName, middle) => {
+      return `var ${varName}="${RENDER_URL}"${middle}`;
+    });
+    changed = true;
+    console.log(`✅  Patched API URL in ${file}`);
+  }
+
+  // NOTE: No hydrateRoot patching needed — SPA build via vite.config.spa.ts
+  // uses @vitejs/plugin-react + entry-client.tsx which calls createRoot directly.
+
+  if (changed) {
+    fs.writeFileSync(filePath, src);
+  }
+}
+
+// ── 4. Patch index.html ───────────────────────────────────────────────────────
+// The SPA build produces its own index.html — just make sure the URLs are right.
 const indexPath = path.join(STATIC, "index.html");
-if (!fs.existsSync(indexPath)) {
-  // Find the hashed entry JS and CSS from the assets folder
-  const assets = fs.readdirSync(path.join(STATIC, "assets"));
-  const entryJs = assets.find((f) => f.startsWith("index-") && f.endsWith(".js")) ?? "";
-  const entryCss = assets.find((f) => f.startsWith("styles-") && f.endsWith(".css")) ?? "";
+if (fs.existsSync(indexPath)) {
+  console.log("ℹ️   index.html exists from SPA build, using as-is");
+} else {
+  // Fallback: generate one manually
+  const entryJs = allAssets.find((f) => f.startsWith("index-") && f.endsWith(".js")) ?? "";
+  const entryCss = allAssets.find((f) => f.startsWith("styles-") && f.endsWith(".css")) ?? "";
 
   const html = `<!doctype html>
 <html lang="en" class="dark">
@@ -55,33 +103,15 @@ if (!fs.existsSync(indexPath)) {
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // TanStack Start SSR bootstrap stub — required even in SPA/no-SSR mode.
-      // Without this, the client bundle throws "Invariant failed" at hydrateRoot.
-      window.$_TSR = {
-        initialized: false,
-        buffer: [],
-        router: {
-          matches: [],
-          lastMatchId: "__root__",
-          manifest: null,
-          dehydratedData: null,
-        },
-        h: function() {},
-        t: new Map(),
-      };
-    </script>
     <script type="module" src="/assets/${entryJs}"></script>
   </body>
 </html>`;
 
   fs.writeFileSync(indexPath, html);
-  console.log(`✅  Generated index.html (entry: ${entryJs}, css: ${entryCss})`);
-} else {
-  console.log("ℹ️   index.html already exists in dist/client, using as-is");
+  console.log(`✅  Generated fallback index.html (entry: ${entryJs})`);
 }
 
-// ── 4. config.json — static SPA routing ──────────────────────────────────────
+// ── 5. config.json — static SPA routing ──────────────────────────────────────
 // Serve hashed assets with immutable cache.
 // Serve static files (favicon, images, etc.) directly.
 // Everything else → /index.html (SPA fallback).
