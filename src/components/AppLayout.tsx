@@ -11,6 +11,7 @@ import {
   Cancel01Icon,
   Activity01Icon as HotIcon,
   ChampionIcon,
+  BookmarkAdd02Icon,
 } from "hugeicons-react";
 import { type Match } from "@/lib/matches";
 import { fetchHomeMatches } from "@/lib/api";
@@ -24,12 +25,13 @@ type NavItem = {
 };
 
 const NAV: readonly NavItem[] = [
-  { to: "/",         label: "Home",     icon: Home01Icon                 },
-  { to: "/live",     label: "Live",     icon: FootballIcon, dot: "live"  },
-  { to: "/hot",      label: "Hot",      icon: HotIcon,    dot: "hot"  },
-  { to: "/moments",  label: "Moments",  icon: ChampionIcon               },
-  { to: "/upcoming", label: "Upcoming", icon: Calendar01Icon             },
-  { to: "/recent",   label: "Recent",   icon: Clock01Icon                },
+  { to: "/",         label: "Home",        icon: Home01Icon                 },
+  { to: "/live",     label: "Live",        icon: FootballIcon, dot: "live"  },
+  { to: "/hot",      label: "Hot",         icon: HotIcon,    dot: "hot"  },
+  { to: "/moments",  label: "Moments",     icon: ChampionIcon               },
+  { to: "/memories", label: "My Memories", icon: BookmarkAdd02Icon          },
+  { to: "/upcoming", label: "Upcoming",    icon: Calendar01Icon             },
+  { to: "/recent",   label: "Recent",      icon: Clock01Icon                },
 ];
 
 const OPEN_W  = 220;

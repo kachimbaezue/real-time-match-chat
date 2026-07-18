@@ -34,6 +34,7 @@ import { Scoreboard } from "@/components/Scoreboard";
 import { PredictionRow } from "@/components/PredictionRow";
 import { MomentumBar } from "@/routes/index";
 import { MatchDetailSkeleton } from "@/components/SkeletonLoader";
+import { SaveMemoryButton } from "@/components/SaveMemoryButton";
 
 export const Route = createFileRoute("/match/$id")({
   loader: async ({ params }) => {
@@ -271,6 +272,13 @@ function ScoreboardCard({ match }: { match: Match }) {
         <p className="mx-auto mt-5 max-w-xl text-center text-[13px] leading-relaxed text-muted-foreground">
           {match.headline}
         </p>
+      )}
+
+      {/* Save Memory — only for finished matches */}
+      {match.status === "finished" && (
+        <div className="mt-4 flex justify-center">
+          <SaveMemoryButton match={match} />
+        </div>
       )}
     </section>
   );

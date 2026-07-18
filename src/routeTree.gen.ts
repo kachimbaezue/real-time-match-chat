@@ -15,10 +15,12 @@ import { Route as RecentRouteImport } from './routes/recent'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MomentsRouteImport } from './routes/moments'
+import { Route as MemoriesRouteImport } from './routes/memories'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as HotRouteImport } from './routes/hot'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MemoriesIdRouteImport } from './routes/memories.$id'
 import { Route as MatchIdRouteImport } from './routes/match.$id'
 
 const UpcomingRoute = UpcomingRouteImport.update({
@@ -51,6 +53,11 @@ const MomentsRoute = MomentsRouteImport.update({
   path: '/moments',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MemoriesRoute = MemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LiveRoute = LiveRouteImport.update({
   id: '/live',
   path: '/live',
@@ -71,6 +78,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MemoriesIdRoute = MemoriesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => MemoriesRoute,
+} as any)
 const MatchIdRoute = MatchIdRouteImport.update({
   id: '/match/$id',
   path: '/match/$id',
@@ -82,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/explore': typeof ExploreRoute
   '/hot': typeof HotRoute
   '/live': typeof LiveRoute
+  '/memories': typeof MemoriesRouteWithChildren
   '/moments': typeof MomentsRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
@@ -89,12 +102,14 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/upcoming': typeof UpcomingRoute
   '/match/$id': typeof MatchIdRoute
+  '/memories/$id': typeof MemoriesIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/explore': typeof ExploreRoute
   '/hot': typeof HotRoute
   '/live': typeof LiveRoute
+  '/memories': typeof MemoriesRouteWithChildren
   '/moments': typeof MomentsRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
@@ -102,6 +117,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/upcoming': typeof UpcomingRoute
   '/match/$id': typeof MatchIdRoute
+  '/memories/$id': typeof MemoriesIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,6 +125,7 @@ export interface FileRoutesById {
   '/explore': typeof ExploreRoute
   '/hot': typeof HotRoute
   '/live': typeof LiveRoute
+  '/memories': typeof MemoriesRouteWithChildren
   '/moments': typeof MomentsRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
@@ -116,6 +133,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/upcoming': typeof UpcomingRoute
   '/match/$id': typeof MatchIdRoute
+  '/memories/$id': typeof MemoriesIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -124,6 +142,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/hot'
     | '/live'
+    | '/memories'
     | '/moments'
     | '/notifications'
     | '/profile'
@@ -131,12 +150,14 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/upcoming'
     | '/match/$id'
+    | '/memories/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/explore'
     | '/hot'
     | '/live'
+    | '/memories'
     | '/moments'
     | '/notifications'
     | '/profile'
@@ -144,12 +165,14 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/upcoming'
     | '/match/$id'
+    | '/memories/$id'
   id:
     | '__root__'
     | '/'
     | '/explore'
     | '/hot'
     | '/live'
+    | '/memories'
     | '/moments'
     | '/notifications'
     | '/profile'
@@ -157,6 +180,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/upcoming'
     | '/match/$id'
+    | '/memories/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -164,6 +188,7 @@ export interface RootRouteChildren {
   ExploreRoute: typeof ExploreRoute
   HotRoute: typeof HotRoute
   LiveRoute: typeof LiveRoute
+  MemoriesRoute: typeof MemoriesRouteWithChildren
   MomentsRoute: typeof MomentsRoute
   NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRoute
@@ -217,6 +242,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MomentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/memories': {
+      id: '/memories'
+      path: '/memories'
+      fullPath: '/memories'
+      preLoaderRoute: typeof MemoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/live': {
       id: '/live'
       path: '/live'
@@ -245,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/memories/$id': {
+      id: '/memories/$id'
+      path: '/$id'
+      fullPath: '/memories/$id'
+      preLoaderRoute: typeof MemoriesIdRouteImport
+      parentRoute: typeof MemoriesRoute
+    }
     '/match/$id': {
       id: '/match/$id'
       path: '/match/$id'
@@ -255,11 +294,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface MemoriesRouteChildren {
+  MemoriesIdRoute: typeof MemoriesIdRoute
+}
+
+const MemoriesRouteChildren: MemoriesRouteChildren = {
+  MemoriesIdRoute: MemoriesIdRoute,
+}
+
+const MemoriesRouteWithChildren = MemoriesRoute._addFileChildren(
+  MemoriesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExploreRoute: ExploreRoute,
   HotRoute: HotRoute,
   LiveRoute: LiveRoute,
+  MemoriesRoute: MemoriesRouteWithChildren,
   MomentsRoute: MomentsRoute,
   NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRoute,
