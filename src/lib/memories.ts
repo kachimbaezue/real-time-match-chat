@@ -1,8 +1,23 @@
 /**
- * Match Memory store — saved to localStorage per wallet address
+ * Match Memory store — saved to localStorage per wallet address or local ID
  */
 
 const STORAGE_KEY = "pulse_memories";
+const LOCAL_ID_KEY = "pulse_local_id";
+
+/**
+ * Get or create a stable anonymous local identity stored in localStorage.
+ * Used as the identity key when no wallet is connected.
+ */
+export function getOrCreateLocalId(): string {
+  if (typeof window === "undefined") return "anonymous";
+  let id = localStorage.getItem(LOCAL_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(LOCAL_ID_KEY, id);
+  }
+  return id;
+}
 
 export interface MatchMemory {
   id: string;                    // uuid
@@ -80,8 +95,8 @@ export function deleteMemory(id: string): void {
   saveAll(all);
 }
 
-/** Build a MatchMemory from a Match object + wallet address */
-export function buildMemory(match: any, walletAddress: string): MatchMemory {
+/** Build a MatchMemory from a Match object + wallet address + optional signature */
+export function buildMemory(match: any, walletAddress: string, txRef: string | null = null): MatchMemory {
   const homeScore: number = match.home?.score ?? 0;
   const awayScore: number = match.away?.score ?? 0;
 
@@ -95,7 +110,7 @@ export function buildMemory(match: any, walletAddress: string): MatchMemory {
     matchId: match.id,
     walletAddress,
     savedAt: Date.now(),
-    txRef: null,
+    txRef,
 
     competition: match.competition ?? "",
     homeTeam: match.home?.name ?? "",

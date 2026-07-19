@@ -20,11 +20,12 @@ export default defineConfig({
     headers: {
       "Content-Security-Policy": [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com blob:",
+        "worker-src blob: 'self'",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com",
         "img-src 'self' data: https: blob:",
-        "connect-src 'self' https://real-time-match-chat.onrender.com wss://real-time-match-chat.onrender.com https://flagcdn.com ws://localhost:* http://localhost:*",
+        "connect-src 'self' https://real-time-match-chat.onrender.com wss://real-time-match-chat.onrender.com https://flagcdn.com ws://localhost:* http://localhost:* https://va.vercel-scripts.com",
         "media-src 'self'",
       ].join("; "),
     },

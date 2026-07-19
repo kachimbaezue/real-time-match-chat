@@ -45,8 +45,10 @@ function toFrontendMatch(m: MatchState) {
     stage: m.competition,
     venue: m.venue,
     momentum: m.momentum.score,
-    headline: m.pulse?.split('. ')[0] ?? '',
-    pulse: m.pulse ? [m.pulse] : [],
+    headline: m.pulse?.split('\n')[0]?.split('. ')[0] ?? '',
+    pulse: m.pulse
+      ? m.pulse.split('\n\n').map(p => p.trim()).filter(Boolean)
+      : [],
     joinedNow: m.recap ? [m.recap] : [],
     stats: matchEngine.mapStats(m),
     winProbability: m.winProbability
@@ -180,7 +182,6 @@ export class MatchController {
   /**
    * GET /matches/debug/snapshot
    * Exposes the raw TxLINE snapshot + engine state for debugging.
-   * Shows: total fixtures in memory, how many are finished, and the first 10 raw snapshot fixtures.
    */
   static async debugSnapshot(_req: Request, res: Response): Promise<void> {
     try {
@@ -189,15 +190,35 @@ export class MatchController {
       const { env } = await import('../config/env');
 
       const wcId = env.TXLINE_WC_COMPETITION_ID ? parseInt(env.TXLINE_WC_COMPETITION_ID, 10) : undefined;
-      const snapshot = await txLineClient.getFixtures(wcId);
 
-      const wcFixtures = wcId
-        ? snapshot.filter((f: any) => f.CompetitionId === wcId)
-        : snapshot.filter((f: any) => f.Competition === 'World Cup');
+      // Fetch snapshot both with and without the competitionId filter
+      const snapshotFiltered = wcId ? await txLineClient.getFixtures(wcId) : [];
+      const snapshotAll      = await txLineClient.getFixtures();
+
+      // Show ALL fixtures in the unfiltered snapshot so we can see what CompetitionIds are present
+      const allByCompetition: Record<string, { count: number; sample: any }> = {};
+      for (const f of snapshotAll) {
+        const key = `${f.CompetitionId} — ${f.Competition}`;
+        if (!allByCompetition[key]) {
+          allByCompetition[key] = { count: 0, sample: { FixtureId: f.FixtureId, Participant1: f.Participant1, Participant2: f.Participant2, GameState: f.GameState, StartTime: f.StartTime } };
+        }
+        allByCompetition[key].count++;
+      }
+
+      const wcFixtures = snapshotAll.filter((f: any) => {
+        const matchesId = wcId !== undefined && f.CompetitionId === wcId;
+        const isWcName = (f.Competition ?? '').toLowerCase().includes('world cup');
+        const WC_START = new Date('2026-06-01').getTime();
+        const WC_END   = new Date('2026-07-31').getTime();
+        const startMs  = typeof f.StartTime === 'number' ? f.StartTime : new Date(f.StartTime ?? '').getTime();
+        const isInWindow = Number.isFinite(startMs) && startMs >= WC_START && startMs <= WC_END;
+        return matchesId || isWcName || isInWindow;
+      });
 
       const finished = wcFixtures.filter((f: any) => MatchNormalizer.isFixtureFinished(f.GameState));
       const live     = wcFixtures.filter((f: any) => [2, 3, 4, 7, 8, 9, 11, 12].includes(f.GameState));
       const upcoming = wcFixtures.filter((f: any) => f.GameState === 1);
+      const ambiguous = wcFixtures.filter((f: any) => f.GameState === null || f.GameState === undefined);
 
       const allInMemory  = matchEngine.getAllMatches();
       const recentInMem  = matchEngine.getRecentMatches();
@@ -208,27 +229,27 @@ export class MatchController {
           live:     allInMemory.filter(m => ['FIRST_HALF','HALF_TIME','SECOND_HALF','EXTRA_TIME','PENALTIES'].includes(m.status)).length,
           upcoming: allInMemory.filter(m => m.status === 'NOT_STARTED').length,
           recent:   recentInMem.length,
+          recentMatches: recentInMem.map(m => ({ id: m.id, home: m.homeTeam, away: m.awayTeam, status: m.status, score: m.score })),
         },
         snapshot: {
-          total:    snapshot.length,
-          wcTotal:  wcFixtures.length,
-          finished: finished.length,
-          live:     live.length,
-          upcoming: upcoming.length,
+          totalAll:   snapshotAll.length,
+          totalFiltered: snapshotFiltered.length,
+          wcTotal:    wcFixtures.length,
+          wcFinished: finished.length,
+          wcLive:     live.length,
+          wcUpcoming: upcoming.length,
+          wcAmbiguous: ambiguous.length,
           wcId,
-          sampleFinished: finished.slice(0, 5).map((f: any) => ({
+          // All competitions in the snapshot — crucial for diagnosing wrong competitionId
+          competitionBreakdown: allByCompetition,
+          wcFixtures: wcFixtures.map((f: any) => ({
             FixtureId: f.FixtureId,
             Participant1: f.Participant1,
             Participant2: f.Participant2,
             GameState: f.GameState,
             StartTime: f.StartTime,
-          })),
-          sampleAll: wcFixtures.slice(0, 10).map((f: any) => ({
-            FixtureId: f.FixtureId,
-            Participant1: f.Participant1,
-            Participant2: f.Participant2,
-            GameState: f.GameState,
-            StartTime: f.StartTime,
+            Competition: f.Competition,
+            CompetitionId: f.CompetitionId,
           })),
         },
       });

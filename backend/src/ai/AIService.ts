@@ -41,20 +41,46 @@ async function chat(prompt: string, maxTokens: number): Promise<string> {
 
 export class AIService {
   /**
-   * Match Pulse — 1-3 sentence narrative of the live state of play.
-   * Used for the "Match Pulse" card and headline.
+   * Match Pulse — 1-3 sentence narrative of the current state of play.
+   * For live matches: concise, present-tense, ~120 tokens.
+   * For finished matches: richer multi-section story, ~300 tokens.
    */
   static async generateMatchPulse(match: MatchState): Promise<string> {
-    // Rule-based fallback when no AI key is set
     if (!client) return AIService.ruleBasedPulse(match);
+
+    const isFinished = match.status === 'FINISHED';
 
     try {
       const recentEvents = match.timeline
-        .slice(0, 6)
+        .slice(0, 8)
         .map((e) => `${e.minute}' ${e.title}${e.player ? ` (${e.player})` : ''}`)
         .join(', ');
 
-      const prompt = `You are a football match analyst writing a "Match Pulse" — a concise, factual summary of the current state of play for a live app.
+      if (isFinished) {
+        const keyEvents = match.timeline
+          .filter((e) => ['GOAL', 'RED_CARD', 'PENALTY'].includes(e.type))
+          .sort((a, b) => a.minute - b.minute)
+          .map((e) => `${e.minute}': ${e.title}${e.player ? ` (${e.player})` : ''} — ${e.team === 'HOME' ? match.homeTeam : match.awayTeam}`)
+          .join('; ');
+
+        const winner = match.score.home > match.score.away ? match.homeTeam
+          : match.score.away > match.score.home ? match.awayTeam : 'neither team';
+
+        const prompt = `You are a football journalist writing a post-match report for a live football app.
+
+Match: ${match.homeTeam} ${match.score.home}–${match.score.away} ${match.awayTeam} (FINAL)
+Competition: ${match.competition}
+Winner: ${winner}
+Key events: ${keyEvents || 'No major events recorded.'}
+Shots: ${match.homeTeam} ${match.stats.shots.home} (${match.stats.shotsOnTarget.home} on target) — ${match.awayTeam} ${match.stats.shots.away} (${match.stats.shotsOnTarget.away} on target)
+Corners: ${match.stats.corners.home} — ${match.stats.corners.away}
+Yellow cards: ${match.stats.yellowCards.home} — ${match.stats.yellowCards.away}
+
+Write a vivid 3-paragraph match report. Paragraph 1: what happened (result + how it unfolded). Paragraph 2: the decisive moment or key player. Paragraph 3: what this result means. Each paragraph 2-3 sentences. No markdown, no headers, no bullet points. Separate paragraphs with a blank line.`;
+
+        return await chat(prompt, 350);
+      } else {
+        const prompt = `You are a football match analyst writing a "Match Pulse" — a concise, factual summary of the current state of play for a live app.
 
 Match: ${match.homeTeam} ${match.score.home}–${match.score.away} ${match.awayTeam}
 Minute: ${match.minute}'
@@ -62,13 +88,13 @@ Status: ${match.status}
 Momentum: ${match.momentum.state} (score: ${match.momentum.score}/100, positive = home team)
 Possession: ${match.homeTeam} ${match.stats.possession.home}% — ${match.awayTeam} ${match.stats.possession.away}%
 Shots: ${match.homeTeam} ${match.stats.shots.home} (${match.stats.shotsOnTarget.home} on target) — ${match.awayTeam} ${match.stats.shots.away} (${match.stats.shotsOnTarget.away} on target)
-xG: ${match.stats.expectedGoals.home.toFixed(1)} — ${match.stats.expectedGoals.away.toFixed(1)}
 Corners: ${match.stats.corners.home} — ${match.stats.corners.away}
 Recent events: ${recentEvents || 'None yet'}
 
-Write exactly 1-2 sentences. Factual, present tense, no markdown, no invented information. Focus on what is most significant right now.`;
+Write exactly 2-3 sentences. Factual, present tense, no markdown, no invented information. Focus on what is most significant right now.`;
 
-      return await chat(prompt, 120);
+        return await chat(prompt, 150);
+      }
     } catch (err: any) {
       logger.error('AI generateMatchPulse failed', { error: err.message });
       return AIService.ruleBasedPulse(match);

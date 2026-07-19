@@ -107,21 +107,24 @@ export class MatchEngine {
 
   private isWorldCupFixture(fixture: TxFixture): boolean {
     const wcId = this.getWcCompetitionId();
-    // If an explicit competition ID is set, use it as the filter
-    if (wcId !== undefined) return fixture.CompetitionId === wcId;
 
-    // Otherwise filter by competition name OR kickoff date within WC 2026 window
-    // WC 2026: June 11 – July 19, 2026 (with a small buffer either side)
+    // If an explicit competition ID is set, match on that OR on name/window
+    // (don't use it as an exclusive filter — TxLINE sometimes mismatches CompetitionId)
+    const matchesId = wcId !== undefined && fixture.CompetitionId === wcId;
+
+    // Name filter — catches variations like "FIFA World Cup 2026", "World Cup 2026", etc.
+    const isWcName = (fixture.Competition ?? '').toLowerCase().includes('world cup');
+
+    // Date window filter — WC 2026: June 11 – July 19, 2026 (with buffer either side)
     const WC_START = new Date('2026-06-01').getTime();
     const WC_END   = new Date('2026-07-31').getTime();
-
-    const isWcName = (fixture.Competition ?? '').toLowerCase().includes('world cup');
     const startMs  = typeof fixture.StartTime === 'number'
       ? fixture.StartTime
       : new Date(fixture.StartTime ?? '').getTime();
     const isInWindow = Number.isFinite(startMs) && startMs >= WC_START && startMs <= WC_END;
 
-    return isWcName || isInWindow;
+    // Accept if any signal matches — don't require all three
+    return matchesId || isWcName || isInWindow;
   }
 
   private filterWorldCup(fixtures: TxFixture[]): TxFixture[] {
@@ -377,14 +380,22 @@ export class MatchEngine {
 
       let events: import('../txline/TxLineClient').TxScoreEvent[] = [];
       try {
-        if (fixtureIsFinished) {
+        // Always try scores/snapshot first — it's the most complete source.
+        // Only fall back to historical if snapshot returns nothing AND the fixture
+        // is confirmed finished (GameState 5/10/13).
+        events = await txLineClient.getScoresSnapshot(fixture.FixtureId);
+        if (!events.length && fixtureIsFinished) {
           events = await txLineClient.getHistoricalScores(fixture.FixtureId);
-        } else {
-          // For both live and upcoming, use snapshot — it's the most complete
-          events = await txLineClient.getScoresSnapshot(fixture.FixtureId);
         }
       } catch {
-        events = [];
+        // snapshot failed — try historical as last resort for finished fixtures
+        if (fixtureIsFinished) {
+          try {
+            events = await txLineClient.getHistoricalScores(fixture.FixtureId);
+          } catch {
+            events = [];
+          }
+        }
       }
 
       const prev = this.matches.get(id);
@@ -395,8 +406,10 @@ export class MatchEngine {
 
       if (!prev) {
         if (FINISHED_STATUSES.includes(next.status)) {
-          // Run AI in background — don't block bootstrap
-          this.generateFinishedMatchAI(next).catch(() => {/* ignore */});
+          this.generateFinishedMatchAI(next).catch(() => {});
+        } else if (LIVE_STATUSES.includes(next.status)) {
+          // First time we see a live match — generate an initial pulse immediately
+          this.generateInitialPulse(next).catch(() => {});
         }
         return;
       }
@@ -476,9 +489,10 @@ export class MatchEngine {
     const scoreChanged =
       prev.score.home !== match.score.home || prev.score.away !== match.score.away;
     const periodicUpdate = match.minute > 0 && match.minute % 5 === 0;
+    const noPulseYet = !match.pulse;
     const key = `${match.id}-${match.minute}`;
 
-    if (!scoreChanged && !periodicUpdate) return;
+    if (!scoreChanged && !periodicUpdate && !noPulseYet) return;
     if (this.aiGeneratedFor.has(key)) return;
     this.aiGeneratedFor.add(key);
 
@@ -495,12 +509,44 @@ export class MatchEngine {
 
         socketService.broadcast('matchPulseUpdated', {
           matchId: match.id,
-          pulse: [pulse],
-          headline: pulse.split('. ')[0] ?? pulse,
+          pulse: pulse.split('\n\n').map(p => p.trim()).filter(Boolean),
+          headline: pulse.split('\n')[0]?.split('. ')[0] ?? pulse,
         });
       }
     } catch (err: any) {
       logger.error(`Live AI generation failed for ${match.id}`, { error: err.message });
+    }
+  }
+
+  /**
+   * Generate the very first pulse for a newly-discovered live match.
+   * Runs once in the background without blocking bootstrap.
+   */
+  private async generateInitialPulse(match: MatchState) {
+    const key = `${match.id}-initial`;
+    if (this.aiGeneratedFor.has(key)) return;
+    this.aiGeneratedFor.add(key);
+
+    try {
+      const [pulse, recap] = await Promise.all([
+        AIService.generateMatchPulse(match),
+        AIService.generateMatchRecap(match),
+      ]);
+
+      if (pulse) {
+        match.pulse = pulse;
+        match.recap = recap;
+        this.matches.set(match.id, match);
+        logger.info(`Initial pulse generated for live match ${match.id}`);
+
+        socketService.broadcast('matchPulseUpdated', {
+          matchId: match.id,
+          pulse: pulse.split('\n\n').map(p => p.trim()).filter(Boolean),
+          headline: pulse.split('\n')[0]?.split('. ')[0] ?? pulse,
+        });
+      }
+    } catch (err: any) {
+      logger.error(`Initial pulse generation failed for ${match.id}`, { error: err.message });
     }
   }
 

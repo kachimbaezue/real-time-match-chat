@@ -7,8 +7,6 @@ import {
   PlayCircle02Icon,
   FlashIcon,
   FootballIcon,
-  CircleIcon,
-  Square01Icon,
   ArrowDataTransferHorizontalIcon,
   Flag01Icon,
   Clock01Icon,
@@ -297,100 +295,118 @@ function TeamName({ team, align }: { team: { name: string; short: string }; alig
 
 function MatchPulseCard({ match }: { match: Match }) {
   const [activeIdx, setActiveIdx] = useState(0);
-  const [isOpen, setIsOpen] = useState(true);
   const isFinished = match.status === "finished";
+  const isMultiParagraph = isFinished && match.pulse.length > 1;
+  // Finished match: collapsed by default — report is long and user reads when ready
+  // Live match: open by default — pulse is the main live context
+  const [isOpen, setIsOpen] = useState(!isFinished);
 
+  // For live: auto-rotate through pulse lines every 5s
   useEffect(() => {
-    if (match.pulse.length <= 1) return;
+    if (isFinished || match.pulse.length <= 1) return;
     const id = setInterval(() => setActiveIdx((i) => (i + 1) % match.pulse.length), 5000);
     return () => clearInterval(id);
-  }, [match.pulse.length]);
+  }, [match.pulse.length, isFinished]);
 
   return (
-    <section className="rounded-2xl border border-white p-4 lg:p-5 bg-card">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <section className="rounded-2xl border border-white bg-card overflow-hidden">
+      {/* Header — always visible, click to toggle */}
+      <button
+        onClick={() => setIsOpen((v) => !v)}
+        className="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-[var(--color-elevated)] transition-colors"
+      >
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-border">
             <FootballIcon size={14} strokeWidth={1.75} className="text-foreground" />
           </div>
           <span className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-foreground">
-            Match Pulse
+            {isFinished ? "Match Report" : "Match Pulse"}
           </span>
-        </div>
-        <div className="flex items-center gap-2">
           {!isFinished && (
             <span className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground/60">
               <span className="live-dot" style={{ width: 5, height: 5 }} />
               Live
             </span>
           )}
+        </div>
+        <div className="flex items-center gap-2">
           <span className="rounded-full border border-border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             AI · {isFinished ? "final" : `${match.minute}'`}
           </span>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="ml-2 p-1 rounded-full hover:bg-border/20 transition-colors"
+          {/* Arrow toggle */}
+          <span
+            className="flex h-5 w-5 items-center justify-center text-muted-foreground transition-transform duration-200"
+            style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}
           >
-            {isOpen ? (
-              <CircleIcon size={14} strokeWidth={1.75} className="text-muted-foreground" />
-            ) : (
-              <Square01Icon size={14} strokeWidth={1.75} className="text-muted-foreground" />
-            )}
-          </button>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
         </div>
-      </div>
+      </button>
 
+      {/* Collapsible content */}
       {isOpen && (
-        <>
-          {/* Active pulse line — big + prominent */}
-          <div className="mt-4">
-            <p className="text-[15px] font-medium leading-relaxed text-foreground lg:text-[16px]">
-              {match.pulse[activeIdx]}
-            </p>
-          </div>
-
-          {/* Dot indicators + other lines */}
-          {match.pulse.length > 1 && (
-            <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
-              {match.pulse.map((line, i) => {
-                if (i === activeIdx) return null;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setActiveIdx(i)}
-                    className="block w-full text-left text-[12px] leading-relaxed text-muted-foreground/70 hover:text-muted-foreground transition-colors"
-                  >
-                    {line}
-                  </button>
-                );
-              })}
-              {/* Progress dots */}
-              <div className="flex items-center gap-1.5 pt-1">
-                {match.pulse.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveIdx(i)}
-                    className="transition-all duration-300"
-                    aria-label={`View insight ${i + 1}`}
-                  >
-                    <span
-                      className="block rounded-full transition-all duration-300"
-                      style={{
-                        width: i === activeIdx ? 16 : 5,
-                        height: 5,
-                        background: i === activeIdx
-                          ? "var(--color-foreground)"
-                          : "color-mix(in oklab, var(--color-foreground) 25%, transparent)",
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
+        <div className="px-4 pb-4 lg:px-5 lg:pb-5 border-t border-border/40">
+          {/* Finished match: full multi-paragraph report */}
+          {isMultiParagraph ? (
+            <div className="mt-4 space-y-4">
+              {match.pulse.map((paragraph, i) => (
+                <p key={i} className="text-[14px] leading-relaxed text-foreground">
+                  {paragraph}
+                </p>
+              ))}
             </div>
+          ) : (
+            /* Live / single pulse: rotating card */
+            <>
+              <div className="mt-4">
+                <p className="text-[15px] font-medium leading-relaxed text-foreground lg:text-[16px]">
+                  {match.pulse[activeIdx]}
+                </p>
+              </div>
+
+              {match.pulse.length > 1 && (
+                <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
+                  {match.pulse.map((line, i) => {
+                    if (i === activeIdx) return null;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setActiveIdx(i)}
+                        className="block w-full text-left text-[12px] leading-relaxed text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+                      >
+                        {line}
+                      </button>
+                    );
+                  })}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    {match.pulse.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setActiveIdx(i)}
+                        className="transition-all duration-300"
+                        aria-label={`View insight ${i + 1}`}
+                      >
+                        <span
+                          className="block rounded-full transition-all duration-300"
+                          style={{
+                            width: i === activeIdx ? 16 : 5,
+                            height: 5,
+                            background: i === activeIdx
+                              ? "var(--color-foreground)"
+                              : "color-mix(in oklab, var(--color-foreground) 25%, transparent)",
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Timeline toggle (if timeline exists) */}
+          {/* Timeline — all events including cards, subs */}
           {match.timeline.length > 0 && (
             <div className="mt-4 space-y-2 border-t border-border/60 pt-3">
               <h4 className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-2">
@@ -399,24 +415,24 @@ function MatchPulseCard({ match }: { match: Match }) {
               <div className="space-y-2">
                 {match.timeline.map((event, i) => {
                   const EventIcon = eventIcon(event.type);
+                  const tone = eventToneColor(event.type);
                   return (
                     <div key={i} className="flex items-start gap-2">
-                      <div className="text-[11px] font-numeric text-muted-foreground pt-0.5 min-w-[40px]">
-                        {event.minute}'
+                      <div className="text-[11px] font-numeric text-muted-foreground pt-0.5 min-w-[36px] text-right">
+                        {event.minute > 0 ? `${event.minute}'` : "KO"}
                       </div>
                       <div className="flex-shrink-0 mt-0.5">
-                        <div className="flex items-center justify-center h-5 w-5 rounded-full border border-border">
+                        <div
+                          className="flex items-center justify-center h-5 w-5 rounded-full border border-border"
+                          style={{ color: tone }}
+                        >
                           <EventIcon size={9} strokeWidth={2} />
                         </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="text-[12px] font-medium text-foreground">
-                          {event.label}
-                        </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[12px] font-medium text-foreground">{event.label}</span>
                         {event.detail && (
-                          <div className="text-[10px] text-muted-foreground">
-                            {event.detail}
-                          </div>
+                          <span className="ml-1.5 text-[11px] text-muted-foreground">· {event.detail}</span>
                         )}
                       </div>
                     </div>
@@ -425,10 +441,21 @@ function MatchPulseCard({ match }: { match: Match }) {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </section>
   );
+}
+
+function eventToneColor(type: TimelineEvent["type"]): string {
+  switch (type) {
+    case "goal": return "var(--color-success, #22c55e)";
+    case "yellow": return "#eab308";
+    case "red": return "var(--color-danger, #ef4444)";
+    case "penalty": return "#f97316";
+    case "fulltime": return "var(--color-success, #22c55e)";
+    default: return "var(--color-muted-foreground)";
+  }
 }
 
 function MomentumCard({ match }: { match: Match }) {
@@ -677,8 +704,9 @@ function TimelineRow({ event, match, isLast }: { event: TimelineEvent; match: Ma
 
 function eventIcon(type: TimelineEvent["type"]) {
   switch (type) {
-    case "goal": return CircleIcon;
-    case "yellow": case "red": return Square01Icon;
+    case "goal": return PlayCircle02Icon;
+    case "yellow":
+    case "red": return CheckmarkCircle01Icon;
     case "sub": return ArrowDataTransferHorizontalIcon;
     case "momentum": return FlashIcon;
     case "penalty": return Flag01Icon;

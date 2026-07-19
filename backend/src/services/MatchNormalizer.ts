@@ -44,10 +44,28 @@ export class MatchNormalizer {
   }
 
   /**
-   * Convert Clock.Seconds to match minute (1-based).
+   * Convert Clock.Seconds + StatusId to the correct match minute.
+   *
+   * TxLINE resets Clock.Seconds to 0 at the start of each period:
+   *   StatusId 2 (H1):    0–45 min  → raw seconds + 0
+   *   StatusId 3 (HT):    show as 45'
+   *   StatusId 4 (H2):    46–90 min → raw seconds + 45*60
+   *   StatusId 5 (FT):    show as 90'
+   *   StatusId 7/8/9 (ET):91–120 min→ raw seconds + 90*60
+   *   StatusId 12 (PE):   show as 120'
    */
-  private static secondsToMinute(seconds: number): number {
-    return Math.ceil(seconds / 60);
+  private static clockToMinute(seconds: number, statusId?: number): number {
+    let offset = 0;
+    switch (statusId) {
+      case 4: offset = 45 * 60; break;    // H2 — add 45 min
+      case 3: return 45;                   // HT marker
+      case 5: case 10: case 13: return 90; // FT marker
+      case 7: case 8: case 9: case 11:
+        offset = 90 * 60; break;           // ET — add 90 min
+      case 12: return 120;                 // Penalties marker
+      default: offset = 0; break;         // H1 or unknown — no offset
+    }
+    return Math.max(1, Math.ceil((seconds + offset) / 60));
   }
 
   /**
@@ -164,22 +182,29 @@ export class MatchNormalizer {
       status = this.fixtureGameStateToStatus(fixture.GameState as number | null | undefined);
     }
 
-    // ── Current minute from Clock.Seconds ──────────────────────────────────
-    // Find the event with the highest Clock.Seconds for current minute
-    let maxSeconds = 0;
+    // ── Current minute from Clock.Seconds + StatusId ──────────────────────
+    // Find the event with the highest absolute time (period-adjusted) for the current minute
+    let maxAdjustedSeconds = 0;
     for (const e of events) {
       const secs = this.getClockSeconds(e);
-      if (secs > maxSeconds) maxSeconds = secs;
+      const sid = this.getStatusId(e);
+      let offset = 0;
+      switch (sid) {
+        case 4: offset = 45 * 60; break;
+        case 7: case 8: case 9: case 11: offset = 90 * 60; break;
+        case 12: offset = 120 * 60; break;
+        default: offset = 0;
+      }
+      const adjusted = secs + offset;
+      if (adjusted > maxAdjustedSeconds) maxAdjustedSeconds = adjusted;
     }
-    const minute = this.secondsToMinute(maxSeconds);
+    const minute = Math.max(1, Math.ceil(maxAdjustedSeconds / 60));
 
     // ── Infer live status from clock time when status is still ambiguous ───
-    // If the match landed on NOT_STARTED or null/undefined but we have clock
-    // time > 0, the match has clearly kicked off — infer the phase from seconds.
-    if ((!status || status === 'NOT_STARTED') && maxSeconds > 0) {
-      if (maxSeconds > 90 * 60) {
+    if ((!status || status === 'NOT_STARTED') && maxAdjustedSeconds > 0) {
+      if (maxAdjustedSeconds > 90 * 60) {
         status = 'EXTRA_TIME';
-      } else if (maxSeconds > 45 * 60) {
+      } else if (maxAdjustedSeconds > 45 * 60) {
         status = 'SECOND_HALF';
       } else {
         status = 'FIRST_HALF';
@@ -516,7 +541,8 @@ export class MatchNormalizer {
         const isP1 = participant === 1;
         const isHome = homeIsP1 ? isP1 : !isP1;
         const seconds = this.getClockSeconds(e);
-        const minute = this.secondsToMinute(seconds);
+        const statusId = this.getStatusId(e);
+        const minute = this.clockToMinute(seconds, statusId);
         const ts = e.Ts ?? (typeof e.ts === 'number' ? e.ts : undefined);
 
         return {

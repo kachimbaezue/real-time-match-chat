@@ -1,22 +1,27 @@
 # Pulse
 
-A second-screen football companion for the FIFA World Cup 2026.
+A real-time football companion for the FIFA World Cup 2026.
 
-Pulse explains the story of a match in real time — so you understand the game, not just the score. Powered by live data from the TxLINE API and AI-generated insights from Groq.
+Pulse explains the story of a match as it unfolds — so you understand the game, not just the score. Powered by live data from the TxLINE API, AI commentary from Groq, and delivered over WebSockets.
 
 Built for the **World Cup Hackathon** by [@superteamNG](https://superteam.fun) and [@TXODDSOfficial](https://txline.io).
+
+**Live:** https://pulse-omega-inky.vercel.app
 
 ---
 
 ## What it does
 
-- Live scoreboard with broadcast-style display
-- Match Pulse — AI-written explanation of what's happening and why
-- If You Joined Now — a real-time catch-up recap for late viewers
-- Momentum engine — shows which team currently controls the game
-- Win probability, live stats, and full match timeline
-- Match replay for finished games
-- Live red dot indicator on the nav — only shows when matches are actually live
+- **Live scoreboard** — broadcast-style, updates in real time via Socket.IO
+- **Match Pulse** — AI narrative of exactly what's happening and why, updates every 5 minutes or on every goal. Collapsible.
+- **Match Report** — for finished matches, a full 3-paragraph AI report: what happened, the decisive moment, what it means
+- **If You Joined Now** — real-time catch-up recap for viewers who tune in late
+- **Momentum engine** — shows which team is controlling the game, not just the score
+- **Accurate timeline** — goals, yellow cards, red cards, penalties, substitutions with correct period-adjusted minutes
+- **Win probability** — live statistical model updated on every event
+- **Match replay** — watch the full match story unfold in under 90 seconds after full time
+- **Save Memory** — bookmark any finished match. Works without a wallet. Connect Phantom to cryptographically sign your memory as proof you witnessed it.
+- **Live nav dot** — only lights up when matches are actually in progress
 
 ---
 
@@ -26,23 +31,45 @@ Built for the **World Cup Hackathon** by [@superteamNG](https://superteam.fun) a
 |---|---|
 | Frontend | React 19, TanStack Router, TanStack Start, Tailwind CSS v4 |
 | Backend | Node.js, TypeScript, Express, Socket.IO |
-| Live data | TxLINE API (by TxOdds) |
-| AI insights | Groq (llama-3.3-70b-versatile), OpenAI fallback |
+| Live data | TxLINE API (by TxOdds) — on-chain Solana subscription |
+| AI commentary | Groq (llama-3.3-70b-versatile), OpenAI fallback |
+| Analytics | Vercel Analytics |
 | Frontend hosting | Vercel |
 | Backend hosting | Render |
 
 ---
 
-## Deployment
+## Web3 / Blockchain
 
-The backend needs a persistent process (Socket.IO + 30s polling). Vercel only runs serverless functions, so the services are split:
+Pulse has two on-chain touchpoints:
 
-| Service | Platform | Why |
-|---|---|---|
-| Frontend | Vercel | Static/SSR React, instant deploys |
-| Backend | Render | Persistent Node.js, always-on, free tier |
+**1. TxLINE subscription (Solana)**
+The live data subscription is activated via a Solana smart contract transaction (`program: 9ExbZjAapQww1vfcisDmrngPinHTEfpjYRWMunJgcKaA`). Even on the free World Cup tier, registering requires executing an on-chain `subscribe` instruction. The `TXLINE_API_KEY` in the backend is the token returned after that transaction was confirmed on mainnet.
 
-See [DEPLOY.md](./DEPLOY.md) for full step-by-step instructions.
+**2. Phantom wallet — signed match memories**
+Users can connect Phantom to sign match memories. When "Sign & Save Memory" is tapped:
+- Phantom prompts the user to sign a message containing the match ID, final score, and timestamp
+- The resulting Ed25519 signature (base64) is stored as `txRef` on the memory
+- The memory is keyed to the wallet address — recoverable on any device by reconnecting the same wallet
+- Signed memories show a green "Signed" badge in the Memories page
+
+Without a wallet, Save Memory still works — it uses a stable random local ID from `localStorage`.
+
+---
+
+## Data Pipeline
+
+```
+TxLINE API (scores/snapshot every 30s, live fast-poll every 10s)
+  └─ MatchNormalizer → MatchState (score, status, period-accurate minutes, stats)
+  └─ AIService (Groq) → pulse string / match report / recap / turning points
+  └─ Socket.IO → frontend (score, stats, timeline, momentum, pulse diffs)
+```
+
+Key normalizer behaviours:
+- `Clock.Seconds` is period-relative — offset added per StatusId (H2 = +45min, ET = +90min)
+- Score from `Stats["1"]`/`Stats["2"]` (cumulative) → fallback to `Score.*.Total.Goals` → fallback to counting goal events
+- Possession: counted from `possession`/`safe_possession` events — shows "est." when fewer than 5 events
 
 ---
 
@@ -50,28 +77,31 @@ See [DEPLOY.md](./DEPLOY.md) for full step-by-step instructions.
 
 ```
 /
-├── src/                  # Frontend (React + TanStack)
-│   ├── routes/           # Page routes (index, live, upcoming, recent, match.$id)
-│   ├── components/       # UI components (AppLayout, Scoreboard, Flag, etc.)
+├── src/                     # Frontend (React + TanStack Router)
+│   ├── routes/              # Pages: index, live, hot, recent, match.$id, memories
+│   ├── components/          # AppLayout, Scoreboard, SaveMemoryButton, WalletModal, etc.
 │   └── lib/
-│       ├── matches.ts    # Match TypeScript types
-│       ├── api.ts        # REST API client → backend
-│       └── socket.ts     # Socket.IO client → live updates
+│       ├── matches.ts       # Match TypeScript types
+│       ├── api.ts           # REST API client
+│       ├── socket.ts        # Socket.IO client + typed event helpers
+│       ├── wallet.ts        # Phantom wallet integration (connect, sign, disconnect)
+│       └── memories.ts      # localStorage memory store + getOrCreateLocalId
 │
-├── backend/              # Node.js backend (deploy to Render)
+├── backend/                 # Node.js backend (deployed on Render)
 │   └── src/
 │       ├── server.ts
-│       ├── routes/       # Express routes
-│       ├── controllers/  # Route controllers
-│       ├── services/     # MatchEngine, MomentumEngine, MatchNormalizer
-│       ├── txline/       # TxLINE API client
-│       ├── ai/           # Groq/OpenAI insight generation
-│       ├── sockets/      # Socket.IO service
-│       └── types/        # Shared TypeScript types
+│       ├── routes/          # matchRoutes, hotRoutes, aiRoutes
+│       ├── controllers/     # MatchController (toFrontendMatch, debug endpoints)
+│       ├── services/        # MatchEngine, MomentumEngine, MatchNormalizer
+│       ├── txline/          # TxLineClient (fixture snapshot, scores, historical)
+│       ├── ai/              # AIService (Groq/OpenAI pulse, report, recap, turning points)
+│       ├── sockets/         # Socket.IO broadcast service
+│       └── types/           # Shared TypeScript types
 │
-├── render.yaml           # Render deployment config (backend)
-├── vercel.json           # Vercel deployment config (frontend)
-└── DEPLOY.md             # Full deployment guide
+├── docs/                    # Technical documentation (GitBook-ready)
+├── index.html               # Dev CSP (includes va.vercel-scripts.com for analytics)
+├── vercel.json              # Production CSP + cache headers
+└── render.yaml              # Render backend config
 ```
 
 ---
@@ -79,19 +109,16 @@ See [DEPLOY.md](./DEPLOY.md) for full step-by-step instructions.
 ## Getting Started (Local)
 
 ### Prerequisites
-
 - Node.js 18+
-- A TxLINE API key and JWT from [TxOdds](https://txline.io)
-- A Groq API key from [console.groq.com](https://console.groq.com) (free)
+- TxLINE JWT and API key from [txodds.com](https://txline.io)
+- Groq API key from [console.groq.com](https://console.groq.com) (free)
 
-### 1. Install frontend dependencies
-
+### 1. Install frontend
 ```bash
 npm install
 ```
 
-### 2. Set up backend environment
-
+### 2. Set up backend
 ```bash
 cd backend
 npm install
@@ -99,45 +126,46 @@ copy .env.example .env
 ```
 
 Edit `backend/.env`:
-
 ```env
 PORT=3001
-TXLINE_BASE_URL=https://txline.txodds.com
+TXLINE_BASE_URL=https://txline-dev.txodds.com
 TXLINE_JWT=your_guest_jwt
 TXLINE_API_KEY=your_api_key
 TXLINE_WC_COMPETITION_ID=72
+TXLINE_KNOWN_FIXTURE_IDS=18241006
 GROQ_API_KEY=your_groq_key
 NODE_ENV=development
 ```
 
-> **Important:** Use `txline.txodds.com` (mainnet), not `txline-dev.txodds.com`.
-> The devnet only exposes 2 fixtures and has no historical data.
+> For mainnet data use `https://txline.txodds.com`. Devnet has ~2 fixtures only.
 
-### 3. Start both servers
+### 3. Start both
 
-**Terminal 1 — Frontend**
+**Terminal 1 — Backend**
+```bash
+cd backend && npm run dev
+```
+
+**Terminal 2 — Frontend**
 ```bash
 npm run dev
 ```
-→ `http://localhost:5173`
 
-**Terminal 2 — Backend**
-```bash
-cd backend
-npm run dev
-```
-→ `http://localhost:3001`
+Frontend → `http://localhost:5173` · Backend → `http://localhost:3001`
 
 ---
 
-## Backend API
+## Key API Endpoints
 
-| Method | Endpoint | Description |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/matches/live` | Live, upcoming, and recent matches |
-| GET | `/matches/:id` | Full match detail |
-| GET | `/matches/debug/snapshot` | Debug: engine state + TxLINE snapshot info |
-| GET | `/health` | Backend health check |
+| GET | `/matches/live` | `{ live, upcoming, recent }` — all match categories |
+| GET | `/matches/previous` | All finished matches |
+| GET | `/matches/:id` | Full match detail with AI content |
+| GET | `/matches/debug/snapshot` | TxLINE snapshot state + engine state (debug) |
+| GET | `/matches/debug/fixture/:id` | Raw TxLINE data vs normalized for a fixture |
+| GET | `/hot` | Ranked feed of events + AI insights across all matches |
+| GET | `/health` | Backend uptime check |
 
 ## Socket.IO Events
 
@@ -156,5 +184,5 @@ npm run dev
 ## Credits
 
 - Live data: [TxLINE by TxOdds](https://txline.io)
-- Built with: [Superteam](https://superteam.fun)
-- AI: [Groq](https://groq.com) + Meta Llama 3.3
+- Hackathon: [Superteam](https://superteam.fun)
+- AI: [Groq](https://groq.com) + Meta Llama 3.3 70B
