@@ -51,7 +51,7 @@ function toFrontendMatch(m: MatchState) {
     stats: matchEngine.mapStats(m),
     winProbability: m.winProbability
       ? [m.winProbability.home, m.winProbability.draw, m.winProbability.away]
-      : [33, 34, 33],
+      : null,
     turningPoints: m.turningPoints ?? [],
     timeline: m.timeline.map((e) => ({
       minute: e.minute,
@@ -104,6 +104,17 @@ function getId(req: Request): string {
 }
 
 export class MatchController {
+  /** GET /matches/previous → all finished matches, newest first */
+  static getPreviousMatches(_req: Request, res: Response): void {
+    try {
+      const matches = matchEngine.getRecentMatches().map(toFrontendMatch);
+      res.json({ matches, total: matches.length });
+    } catch (err) {
+      logger.error('Error fetching previous matches', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
   /** GET /matches/live → { live, upcoming, recent } */
   static getLiveMatches(_req: Request, res: Response): void {
     try {

@@ -36,7 +36,7 @@ export interface Match {
     fouls: [number, number];
     xg: [number, number];
   };
-  winProbability: [number, number, number]; // home, draw, away
+  winProbability: [number, number, number] | null; // home, draw, away — null when not yet computed
   timeline: TimelineEvent[];
   turningPoints?: string[];
 }

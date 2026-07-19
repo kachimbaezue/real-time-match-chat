@@ -14,6 +14,10 @@ const envSchema = z.object({
   TXLINE_BASE_URL: z.string().url().default('https://txline.txodds.com'),
   // World Cup competition ID on TxLINE — leave empty to fetch all competitions
   TXLINE_WC_COMPETITION_ID: z.string().default(''),
+  // Comma-separated list of known finished fixture IDs to bootstrap on startup.
+  // Use this to manually add any WC matches that have dropped off the TxLINE snapshot.
+  // e.g. "18241006,18257739,18257865"
+  TXLINE_KNOWN_FIXTURE_IDS: z.string().optional().default(''),
   // News API key for fetching verified World Cup news
   NEWS_API_KEY: z.string().optional().default(''),
   // AI keys — GROQ_API_KEY is free (https://console.groq.com), OpenAI is fallback

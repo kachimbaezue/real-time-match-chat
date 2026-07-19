@@ -47,6 +47,30 @@ export class TxLineClient {
     return this.asFixtureArray(res.data);
   }
 
+  /**
+   * GET /api/fixtures
+   * Returns fixtures filtered by date range. Used to discover historical
+   * fixtures that have dropped off the snapshot (TxLINE only keeps the
+   * snapshot window short — finished matches disappear from it quickly).
+   *
+   * @param competitionId  Optional competition filter (72 = FIFA WC 2026)
+   * @param from           ISO-8601 start date, e.g. "2026-06-11T00:00:00Z"
+   * @param to             ISO-8601 end date,   e.g. "2026-07-19T23:59:59Z"
+   */
+  async getFixturesByDateRange(competitionId?: number, from?: string, to?: string): Promise<TxFixture[]> {
+    const params: Record<string, unknown> = {};
+    if (competitionId !== undefined) params.competitionId = competitionId;
+    if (from) params.from = from;
+    if (to) params.to = to;
+    try {
+      const res = await this.client.get<TxFixture[]>('/api/fixtures', { params });
+      return this.asFixtureArray(res.data);
+    } catch {
+      // Endpoint may not be available on all subscription tiers — fail gracefully
+      return [];
+    }
+  }
+
   private asFixtureArray(data: unknown): TxFixture[] {
     if (Array.isArray(data)) return data;
     if (data && typeof data === 'object') {

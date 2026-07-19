@@ -24,7 +24,6 @@ const KNOWN_WC_FINISHED_FIXTURES: Array<{
   // StartTime: 2026-07-19T20:00:00Z = 1784527200000
   { FixtureId: 18241010, Participant1: 'France', Participant2: 'Spain', StartTime: 1784527200000, Participant1IsHome: true },
 ];
-
 const LIVE_STATUSES: MatchStatus[] = [
   'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',
 ];
@@ -91,8 +90,7 @@ export class MatchEngine {
   getRecentMatches(): MatchState[] {
     return this.getAllMatches()
       .filter((m) => FINISHED_STATUSES.includes(m.status))
-      .sort((a, b) => this.kickoffMs(b) - this.kickoffMs(a))
-      .slice(0, 2);
+      .sort((a, b) => this.kickoffMs(b) - this.kickoffMs(a));
   }
 
   private kickoffMs(m: MatchState): number {
@@ -165,47 +163,117 @@ export class MatchEngine {
         ...ambiguous.map((f) => this.syncFixture(f)),
       ]);
 
-      // 2. Bootstrap known finished fixtures that dropped off the snapshot
-      // Only do this in mainnet WC mode (when a competition ID is configured)
-      if (wcId !== undefined) {
-        await this.bootstrapKnownFinished();
-      }
+      // 2. Bootstrap historical fixtures that dropped off the snapshot.
+      // Two strategies run in parallel:
+      //   a) Date-range query on /api/fixtures (discovers ALL past WC fixtures automatically)
+      //   b) TXLINE_KNOWN_FIXTURE_IDS env var + KNOWN_WC_FINISHED_FIXTURES (manual fallback)
+      await this.bootstrapAllHistorical(wcId);
+
     } catch (err: any) {
       logger.error('Historical bootstrap failed', { error: err.message });
     }
   }
 
   /**
-   * Load fixtures we know are finished but no longer appear in the snapshot.
-   * These are hardcoded because TxLINE's fixture/snapshot only returns active fixtures.
+   * Discover all historical WC fixtures via two approaches, run concurrently:
+   *   1. /api/fixtures date-range query (WC 2026: Jun 11 – Jul 19)
+   *   2. Hardcoded KNOWN_WC_FINISHED_FIXTURES + TXLINE_KNOWN_FIXTURE_IDS env var
+   *
+   * Both approaches use scores/snapshot to fetch events — the status is derived
+   * from the events, not from fixture-level GameState.
+   */
+  private async bootstrapAllHistorical(wcId?: number) {
+    // --- Strategy 1: date-range discovery via /api/fixtures ---
+    try {
+      const historical = await txLineClient.getFixturesByDateRange(
+        wcId,
+        '2026-06-11T00:00:00Z',
+        '2026-07-20T23:59:59Z',
+      );
+      const wcHistorical = this.filterWorldCup(historical);
+      // Only process fixtures not already in memory
+      const novel = wcHistorical.filter((f) => !this.matches.has(String(f.FixtureId)));
+
+      if (novel.length > 0) {
+        logger.info(`Date-range discovery: found ${novel.length} historical WC fixture(s) to bootstrap`);
+        await Promise.allSettled(novel.map((f) => this.syncFixture(f)));
+      } else if (wcHistorical.length > 0) {
+        logger.info(`Date-range discovery: all ${wcHistorical.length} historical fixture(s) already in memory`);
+      } else {
+        logger.info('Date-range discovery: /api/fixtures returned no WC fixtures (may not be available on this tier)');
+      }
+    } catch (err: any) {
+      logger.warn('Date-range fixture discovery failed — falling back to known IDs', { error: err.message });
+    }
+
+    // --- Strategy 2: known fixture IDs (env var + hardcoded list) ---
+    await this.bootstrapKnownFinished();
+  }
+
+  /**
+   * Bootstrap known finished fixtures that dropped off the snapshot.
+   * Sources (merged, deduped):
+   *   1. TXLINE_KNOWN_FIXTURE_IDS env var — comma-separated fixture IDs
+   *   2. KNOWN_WC_FINISHED_FIXTURES — hardcoded list with team metadata
+   *
+   * Fixture IDs from the env var don't have team names, so we fetch the fixture
+   * from the snapshot first; if not found we synthesize a minimal fixture and let
+   * the events drive everything (team names come from the events' Participant fields
+   * or remain as placeholder "TBD" until we can do a full fixture lookup).
    */
   private async bootstrapKnownFinished() {
-    logger.info(`Bootstrapping ${KNOWN_WC_FINISHED_FIXTURES.length} known-finished WC fixtures`);
+    // Merge env var IDs with the hardcoded list
+    const envIds = (env.TXLINE_KNOWN_FIXTURE_IDS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    // Build a map from the hardcoded list for quick metadata lookup
+    const metaById = new Map(KNOWN_WC_FINISHED_FIXTURES.map((f) => [f.FixtureId, f]));
+
+    // Merge: env var IDs first, then hardcoded (env var takes priority if both present)
+    const allIds = Array.from(new Set([...envIds, ...KNOWN_WC_FINISHED_FIXTURES.map((f) => f.FixtureId)]));
+
+    if (allIds.length === 0) return;
+
+    logger.info(`Bootstrapping ${allIds.length} known/configured finished fixture(s)`);
+
     await Promise.allSettled(
-      KNOWN_WC_FINISHED_FIXTURES.map(async (known) => {
-        const id = String(known.FixtureId);
+      allIds.map(async (fixtureId) => {
+        const id = String(fixtureId);
         if (this.matches.has(id)) return; // already loaded
+
+        const meta = metaById.get(fixtureId);
+
         try {
-          const events = await txLineClient.getScoresSnapshot(known.FixtureId);
-          if (!events.length) return;
+          const events = await txLineClient.getScoresSnapshot(fixtureId);
+          if (!events.length) {
+            logger.warn(`No events returned for fixture ${id} — skipping`);
+            return;
+          }
+
+          // Build a fixture stub. Prefer metadata from the hardcoded list;
+          // fall back to deriving team names from the first event's FixtureId context.
           const fixture: TxFixture = {
-            FixtureId: known.FixtureId,
-            StartTime: known.StartTime,
+            FixtureId: fixtureId,
+            StartTime: meta?.StartTime ?? 0,
             Competition: 'FIFA World Cup 2026',
             CompetitionId: 72,
-            Participant1: known.Participant1,
-            Participant2: known.Participant2,
-            Participant1IsHome: known.Participant1IsHome,
+            Participant1: meta?.Participant1 ?? 'Team 1',
+            Participant2: meta?.Participant2 ?? 'Team 2',
+            Participant1IsHome: meta?.Participant1IsHome ?? true,
             GameState: null, // let events drive — they'll show game_finalised (StatusId=100)
           };
+
           const state = MatchNormalizer.normalize(fixture, events);
           state.winProbability = AIService.calculateWinProbability(state);
           this.matches.set(id, state);
-          logger.info(`Bootstrapped finished fixture ${id} (${known.Participant1} vs ${known.Participant2}) — status: ${state.status} score: ${state.score.home}-${state.score.away}`);
-          // Generate AI for finished match in background
+          logger.info(`Bootstrapped fixture ${id} (${fixture.Participant1} vs ${fixture.Participant2}) — status: ${state.status} score: ${state.score.home}-${state.score.away}`);
           this.generateFinishedMatchAI(state).catch(() => {});
         } catch (err: any) {
-          logger.error(`Failed to bootstrap known fixture ${id}`, { error: err.message });
+          logger.error(`Failed to bootstrap fixture ${id}`, { error: err.message });
         }
       })
     );

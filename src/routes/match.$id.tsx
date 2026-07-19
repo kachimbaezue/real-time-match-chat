@@ -493,6 +493,9 @@ function Waveform({ value }: { value: number }) {
 }
 
 function WinProbabilityCard({ match }: { match: Match }) {
+  // Don't render if win probability hasn't been computed yet
+  if (!match.winProbability) return null;
+
   const [home, draw, away] = match.winProbability;
   const rows = [
     { label: `${match.home.name} win`, flagCode: match.home.short, pct: home, tone: "primary" as const },
@@ -522,13 +525,25 @@ function WinProbabilityCard({ match }: { match: Match }) {
 }
 
 function StatsCard({ match }: { match: Match }) {
-  const rows: { label: string; values: [number, number]; format?: (n: number) => string }[] = [
-    { label: "Possession", values: match.stats.possession, format: (n) => `${n}%` },
+  const [homePoss, awayPoss] = match.stats.possession;
+  const possessionEstimated = homePoss === 50 && awayPoss === 50;
+
+  const [homeXg, awayXg] = match.stats.xg;
+  const hasXg = homeXg > 0 || awayXg > 0;
+
+  const rows: { label: string; values: [number, number]; format?: (n: number) => string; estimated?: boolean }[] = [
+    {
+      label: possessionEstimated ? "Possession (est.)" : "Possession",
+      values: match.stats.possession,
+      format: (n) => `${n}%`,
+      estimated: possessionEstimated,
+    },
     { label: "Shots", values: match.stats.shots },
     { label: "Shots on target", values: match.stats.shotsOnTarget },
     { label: "Corners", values: match.stats.corners },
     { label: "Fouls", values: match.stats.fouls },
-    { label: "Expected goals", values: match.stats.xg, format: (n) => n.toFixed(1) },
+    // Only show xG when TxLINE actually provides it
+    ...(hasXg ? [{ label: "Expected goals", values: match.stats.xg, format: (n: number) => n.toFixed(1) }] : []),
   ];
 
   return (
@@ -540,20 +555,20 @@ function StatsCard({ match }: { match: Match }) {
       </div>
       <div className="mt-2 space-y-3">
         {rows.map((r) => (
-          <StatRow key={r.label} label={r.label} values={r.values} format={r.format} />
+          <StatRow key={r.label} label={r.label} values={r.values} format={r.format} estimated={r.estimated} />
         ))}
       </div>
     </Card>
   );
 }
 
-function StatRow({ label, values, format }: { label: string; values: [number, number]; format?: (n: number) => string }) {
+function StatRow({ label, values, format, estimated }: { label: string; values: [number, number]; format?: (n: number) => string; estimated?: boolean }) {
   const [a, b] = values;
   const total = a + b || 1;
   const aPct = (a / total) * 100;
   const fmt = format ?? ((n: number) => String(n));
   return (
-    <div>
+    <div className={estimated ? "opacity-50" : undefined}>
       <div className="mb-1 flex items-center justify-between font-numeric text-[12px]">
         <span className="text-foreground">{fmt(a)}</span>
         <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</span>
