@@ -4,6 +4,7 @@ import {
   createRootRouteWithContext,
   useRouter,
 } from "@tanstack/react-router";
+import { Analytics } from "@vercel/analytics/react";
 
 import { AppLayout } from "../components/AppLayout";
 import { Preloader } from "../components/Preloader";
@@ -78,6 +79,7 @@ function RootComponent() {
       <AppLayout>
         <Outlet />
       </AppLayout>
+      <Analytics />
     </QueryClientProvider>
   );
 }
