@@ -20,6 +20,9 @@ const KNOWN_WC_FINISHED_FIXTURES: Array<{
   // England vs Argentina — Semifinal — Jul 15 2026
   // Final score: England 1 – 2 Argentina (Stats key 1=1, key 2=2)
   { FixtureId: 18241006, Participant1: 'England', Participant2: 'Argentina', StartTime: 1784142000000, Participant1IsHome: true },
+  // FIFA World Cup 2026 Final — Jul 19 2026
+  // StartTime: 2026-07-19T20:00:00Z = 1784527200000
+  { FixtureId: 18241010, Participant1: 'France', Participant2: 'Spain', StartTime: 1784527200000, Participant1IsHome: true },
 ];
 
 const LIVE_STATUSES: MatchStatus[] = [
@@ -88,7 +91,8 @@ export class MatchEngine {
   getRecentMatches(): MatchState[] {
     return this.getAllMatches()
       .filter((m) => FINISHED_STATUSES.includes(m.status))
-      .sort((a, b) => this.kickoffMs(b) - this.kickoffMs(a));
+      .sort((a, b) => this.kickoffMs(b) - this.kickoffMs(a))
+      .slice(0, 2);
   }
 
   private kickoffMs(m: MatchState): number {

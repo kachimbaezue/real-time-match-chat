@@ -168,6 +168,7 @@ function Home() {
             icon={<Clock01Icon size={15} strokeWidth={1.75} />}
             label="Recent"
             count={loading ? undefined : recent.length}
+            viewAllTo="/recent"
           />
           {loading ? (
             <SectionSkeleton rows={2} />
@@ -175,7 +176,7 @@ function Home() {
             <EmptyState message="No recent matches." />
           ) : (
             <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-2">
-              {recent.map((m) => (
+              {recent.slice(0, 2).map((m) => (
                 <MatchCard key={m.id} match={m} />
               ))}
             </div>
@@ -190,21 +191,34 @@ function SectionHeader({
   icon,
   label,
   count,
+  viewAllTo,
 }: {
   icon: React.ReactNode;
   label: string;
   count?: number;
+  viewAllTo?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 text-muted-foreground">
-      {icon}
-      <span className="font-display text-[11px] font-bold uppercase tracking-[0.16em]">
-        {label}
-      </span>
-      {count !== undefined && (
-        <span className="rounded-full border border-border px-1.5 py-0.5 font-numeric text-[9px] font-semibold">
-          {count}
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        {icon}
+        <span className="font-display text-[11px] font-bold uppercase tracking-[0.16em]">
+          {label}
         </span>
+        {count !== undefined && (
+          <span className="rounded-full border border-border px-1.5 py-0.5 font-numeric text-[9px] font-semibold">
+            {count}
+          </span>
+        )}
+      </div>
+      {viewAllTo && (
+        <Link
+          to={viewAllTo as any}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+        >
+          View all
+          <ArrowRight01Icon size={11} strokeWidth={2} />
+        </Link>
       )}
     </div>
   );
