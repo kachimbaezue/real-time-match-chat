@@ -56,6 +56,9 @@ export class AIService {
         .map((e) => `${e.minute}' ${e.title}${e.player ? ` (${e.player})` : ''}`)
         .join(', ');
 
+      const homeStarters = match.lineups?.home.filter(p => p.starter).map(p => p.shortName).join(', ');
+      const awayStarters = match.lineups?.away.filter(p => p.starter).map(p => p.shortName).join(', ');
+
       if (isFinished) {
         const keyEvents = match.timeline
           .filter((e) => ['GOAL', 'RED_CARD', 'PENALTY'].includes(e.type))
@@ -74,7 +77,7 @@ Winner: ${winner}
 Key events: ${keyEvents || 'No major events recorded.'}
 Shots: ${match.homeTeam} ${match.stats.shots.home} (${match.stats.shotsOnTarget.home} on target) — ${match.awayTeam} ${match.stats.shots.away} (${match.stats.shotsOnTarget.away} on target)
 Corners: ${match.stats.corners.home} — ${match.stats.corners.away}
-Yellow cards: ${match.stats.yellowCards.home} — ${match.stats.yellowCards.away}
+Yellow cards: ${match.stats.yellowCards.home} — ${match.stats.yellowCards.away}${homeStarters ? `\n${match.homeTeam} XI: ${homeStarters}` : ''}${awayStarters ? `\n${match.awayTeam} XI: ${awayStarters}` : ''}
 
 Write a vivid 3-paragraph match report. Paragraph 1: what happened (result + how it unfolded). Paragraph 2: the decisive moment or key player. Paragraph 3: what this result means. Each paragraph 2-3 sentences. No markdown, no headers, no bullet points. Separate paragraphs with a blank line.`;
 
@@ -89,7 +92,7 @@ Momentum: ${match.momentum.state} (score: ${match.momentum.score}/100, positive 
 Possession: ${match.homeTeam} ${match.stats.possession.home}% — ${match.awayTeam} ${match.stats.possession.away}%
 Shots: ${match.homeTeam} ${match.stats.shots.home} (${match.stats.shotsOnTarget.home} on target) — ${match.awayTeam} ${match.stats.shots.away} (${match.stats.shotsOnTarget.away} on target)
 Corners: ${match.stats.corners.home} — ${match.stats.corners.away}
-Recent events: ${recentEvents || 'None yet'}
+Recent events: ${recentEvents || 'None yet'}${homeStarters ? `\n${match.homeTeam} key players: ${homeStarters}` : ''}${awayStarters ? `\n${match.awayTeam} key players: ${awayStarters}` : ''}
 
 Write exactly 2-3 sentences. Factual, present tense, no markdown, no invented information. Focus on what is most significant right now.`;
 

@@ -55,6 +55,22 @@ function toFrontendMatch(m: MatchState) {
       ? [m.winProbability.home, m.winProbability.draw, m.winProbability.away]
       : null,
     turningPoints: m.turningPoints ?? [],
+    lineups: m.lineups ? {
+      home: m.lineups.home.map(p => ({
+        name: p.name,
+        shortName: p.shortName,
+        number: p.number,
+        position: p.position,
+        starter: p.starter,
+      })),
+      away: m.lineups.away.map(p => ({
+        name: p.name,
+        shortName: p.shortName,
+        number: p.number,
+        position: p.position,
+        starter: p.starter,
+      })),
+    } : undefined,
     timeline: m.timeline.map((e) => ({
       minute: e.minute,
       type: mapEventType(e.type),

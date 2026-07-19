@@ -154,6 +154,7 @@ function MatchPage() {
             {!isFinished && <WinProbabilityCard match={match} />}
             {match.momentum !== 0 && <MomentumCard match={match} />}
             <StatsCard match={match} />
+            {match.lineups && <LineupsCard match={match} />}
             {isFinished && match.turningPoints && (
               <TurningPointsCard match={match} />
             )}
@@ -610,6 +611,95 @@ function StatRow({ label, values, format, estimated }: { label: string; values: 
         </div>
       </div>
     </div>
+  );
+}
+
+function LineupsCard({ match }: { match: Match }) {
+  const [tab, setTab] = useState<"home" | "away">("home");
+  if (!match.lineups) return null;
+
+  const players = tab === "home" ? match.lineups.home : match.lineups.away;
+  const teamName = tab === "home" ? match.home.name : match.away.name;
+  const starters = players.filter(p => p.starter);
+  const subs = players.filter(p => !p.starter);
+
+  const posLabel: Record<string, string> = { GK: "GK", DEF: "DEF", MID: "MID", FWD: "FWD" };
+  const posColor: Record<string, string> = {
+    GK: "text-yellow-500",
+    DEF: "text-blue-400",
+    MID: "text-green-400",
+    FWD: "text-red-400",
+  };
+
+  return (
+    <Card>
+      {/* Header + team tabs */}
+      <div className="flex items-center justify-between">
+        <SectionLabel>Lineups</SectionLabel>
+        <div className="flex gap-1 rounded-lg border border-border p-0.5">
+          {(["home", "away"] as const).map(side => (
+            <button
+              key={side}
+              onClick={() => setTab(side)}
+              className={[
+                "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                tab === side
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              {side === "home" ? match.home.short : match.away.short}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Starting XI */}
+      <div className="mt-3">
+        <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Starting XI
+        </p>
+        <div className="space-y-1.5">
+          {starters.map((p, i) => (
+            <div key={i} className="flex items-center gap-2.5">
+              <span className="w-5 text-center font-numeric text-[11px] font-semibold text-muted-foreground">
+                {p.number}
+              </span>
+              <span className={`w-7 text-[9px] font-bold uppercase ${posColor[p.position] ?? "text-muted-foreground"}`}>
+                {posLabel[p.position]}
+              </span>
+              <span className="flex-1 text-[13px] font-medium text-foreground">
+                {p.shortName}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Substitutes */}
+      {subs.length > 0 && (
+        <div className="mt-4 border-t border-border/60 pt-3">
+          <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Substitutes
+          </p>
+          <div className="space-y-1.5">
+            {subs.map((p, i) => (
+              <div key={i} className="flex items-center gap-2.5 opacity-60">
+                <span className="w-5 text-center font-numeric text-[11px] font-semibold text-muted-foreground">
+                  {p.number}
+                </span>
+                <span className={`w-7 text-[9px] font-bold uppercase ${posColor[p.position] ?? "text-muted-foreground"}`}>
+                  {posLabel[p.position]}
+                </span>
+                <span className="flex-1 text-[12px] text-foreground">
+                  {p.shortName}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

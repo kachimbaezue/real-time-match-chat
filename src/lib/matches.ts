@@ -14,6 +14,14 @@ export interface TimelineEvent {
   detail?: string;
 }
 
+export interface LineupPlayer {
+  name: string;
+  shortName: string;
+  number: string;
+  position: "GK" | "DEF" | "MID" | "FWD";
+  starter: boolean;
+}
+
 export interface Match {
   id: string;
   home: { name: string; short: string; score: number };
@@ -39,4 +47,8 @@ export interface Match {
   winProbability: [number, number, number] | null; // home, draw, away — null when not yet computed
   timeline: TimelineEvent[];
   turningPoints?: string[];
+  lineups?: {
+    home: LineupPlayer[];
+    away: LineupPlayer[];
+  };
 }

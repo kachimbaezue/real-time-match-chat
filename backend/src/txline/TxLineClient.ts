@@ -207,7 +207,55 @@ export interface TxScoreEvent {
       Total?: Record<string, number>;
     };
   };
-  Data?: Record<string, unknown>;
+  /**
+   * Lineup data — present on Action='lineups' events as a top-level field (not inside Data).
+   * Each entry is a team with its squad.
+   */
+  Lineups?: Array<{
+    id?: string;
+    normativeId?: number;
+    preferredName?: string;
+    gender?: string;
+    lineups?: Array<{
+      fixturePlayerId?: number;
+      normativeId?: number;
+      statusId?: number;
+      positionId?: number;
+      rosterNumber?: string;
+      starter?: boolean;
+      starred?: boolean;
+      player?: {
+        id?: string;
+        normativeId?: number;
+        preferredName?: string;
+        country?: string;
+        dateOfBirth?: string;
+        team?: string;
+      };
+    }>;
+  }>;
+  Data?: Record<string, unknown> & {
+    // shot event
+    Outcome?: string;
+    // card event
+    PlayerId?: number;
+    // substitution event
+    PlayerInId?: number;
+    PlayerOutId?: number;
+    Participant?: number;
+    // venue event
+    Type?: string;
+    // weather event
+    Conditions?: string;
+    // jersey event
+    Color?: string;
+    // free kick type
+    FreeKickType?: string;
+    // action_amend
+    Action?: string;
+    New?: Record<string, unknown>;
+    Previous?: Record<string, unknown>;
+  };
   Participant?: 1 | 2;           // which team did this action
   Possession?: 1 | 2;           // which team has ball (possession events)
   PossessionType?: string;       // "SafePossession" | "AttackPossession" | etc.

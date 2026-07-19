@@ -1,5 +1,5 @@
 import { TxFixture, TxScoreEvent } from '../txline/TxLineClient';
-import { MatchState, MatchStatus, TimelineEvent, EventType } from '../types';
+import { MatchState, MatchStatus, TimelineEvent, EventType, MatchLineups, LineupPlayer, PlayerPosition } from '../types';
 import { MomentumEngine } from './MomentumEngine';
 
 /**
@@ -144,6 +144,90 @@ export class MatchNormalizer {
   }
 
   /**
+   * Map TxLINE positionId to our PlayerPosition enum.
+   * Confirmed from live data: 34=GK, 35=DEF, 36=MID, 37=FWD
+   */
+  private static positionIdToPosition(positionId?: number): PlayerPosition {
+    switch (positionId) {
+      case 34: return 'GK';
+      case 35: return 'DEF';
+      case 36: return 'MID';
+      case 37: return 'FWD';
+      default: return 'MID';
+    }
+  }
+
+  /**
+   * Shorten a player's full name for display.
+   * "Messi, Lionel" → "Messi"
+   * "Simon Mendibil, Unai" → "Unai Simon"
+   * Handles "LastName, FirstName" (comma format) and "FirstName LastName".
+   */
+  private static shortenPlayerName(fullName: string): string {
+    if (!fullName) return '';
+    if (fullName.includes(',')) {
+      const [last, first] = fullName.split(',').map(s => s.trim());
+      // For well-known single-name players or short names, prefer last name only
+      if (!first || last.split(' ').length === 1) return last;
+      // For goalkeepers and others, use "First Last" order
+      return `${first.split(' ')[0]} ${last.split(' ')[0]}`;
+    }
+    // "FirstName LastName" — return last name
+    const parts = fullName.trim().split(' ');
+    return parts[parts.length - 1] ?? fullName;
+  }
+
+  /**
+   * Extract lineup data from the `lineups` event.
+   * TxLINE sends lineups as a top-level `Lineups` array on the event (not inside Data).
+   * Lineups[0] = P1 (home if Participant1IsHome), Lineups[1] = P2.
+   */
+  private static extractLineups(events: TxScoreEvent[], homeIsP1: boolean): MatchLineups {
+    const result: MatchLineups = { home: [], away: [] };
+
+    for (const e of events) {
+      if (this.getAction(e) !== 'lineups') continue;
+      const teams = e.Lineups;
+      if (!Array.isArray(teams) || teams.length < 1) continue;
+
+      for (let teamIdx = 0; teamIdx < teams.length; teamIdx++) {
+        const team = teams[teamIdx];
+        const lineups = team?.lineups;
+        if (!Array.isArray(lineups)) continue;
+
+        const isP1 = teamIdx === 0;
+        const isHome = homeIsP1 ? isP1 : !isP1;
+
+        const players: LineupPlayer[] = lineups
+          .filter(l => l.player?.preferredName)
+          .map(l => ({
+            id: l.fixturePlayerId ?? 0,
+            normativeId: l.player?.normativeId ?? l.normativeId ?? 0,
+            name: l.player?.preferredName ?? '',
+            shortName: this.shortenPlayerName(l.player?.preferredName ?? ''),
+            number: l.rosterNumber ?? '',
+            position: this.positionIdToPosition(l.positionId),
+            starter: l.starter ?? false,
+          }))
+          .sort((a, b) => {
+            if (a.starter !== b.starter) return a.starter ? -1 : 1;
+            const posOrder = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
+            const posDiff = posOrder[a.position] - posOrder[b.position];
+            if (posDiff !== 0) return posDiff;
+            return parseInt(a.number) - parseInt(b.number);
+          });
+
+        if (isHome) result.home = players;
+        else result.away = players;
+      }
+
+      break; // only one lineups event needed
+    }
+
+    return result;
+  }
+
+  /**
    * Map TxLINE Action string to our EventType enum.
    */
   static actionToEventType(action?: string): EventType {
@@ -226,6 +310,9 @@ export class MatchNormalizer {
     // ── Timeline ────────────────────────────────────────────────────────────
     const timeline = this.buildTimeline(events, homeIsP1);
 
+    // ── Lineups ─────────────────────────────────────────────────────────────
+    const lineups = this.extractLineups(events, homeIsP1);
+
     // ── Momentum ────────────────────────────────────────────────────────────
     const momentum = MomentumEngine.calculateMomentum(stats, timeline);
 
@@ -242,6 +329,7 @@ export class MatchNormalizer {
       stats,
       timeline,
       momentum,
+      lineups: lineups.home.length > 0 || lineups.away.length > 0 ? lineups : undefined,
     };
   }
 
@@ -530,6 +618,23 @@ export class MatchNormalizer {
       'corner', 'status', 'additional_time',
     ]);
 
+    // Build a normativeId → shortName map from the lineups event
+    const playerById = new Map<number, string>();
+    for (const e of events) {
+      if (this.getAction(e) !== 'lineups') continue;
+      const teams = e.Lineups;
+      if (!Array.isArray(teams)) continue;
+      for (const team of teams) {
+        if (!Array.isArray(team?.lineups)) continue;
+        for (const l of team.lineups) {
+          const nid = l.player?.normativeId ?? l.normativeId;
+          const name = l.player?.preferredName;
+          if (nid && name) playerById.set(nid, this.shortenPlayerName(name));
+        }
+      }
+      break;
+    }
+
     return events
       .filter((e) => {
         const action = this.getAction(e);
@@ -545,14 +650,36 @@ export class MatchNormalizer {
         const minute = this.clockToMinute(seconds, statusId);
         const ts = e.Ts ?? (typeof e.ts === 'number' ? e.ts : undefined);
 
+        // Resolve player name: prefer event.player field,
+        // then look up Data.PlayerId / Data.PlayerInId against lineups
+        let playerName = e.player;
+        if (!playerName) {
+          const pid = e.Data?.PlayerId ?? e.Data?.PlayerOutId;
+          if (typeof pid === 'number' && playerById.has(pid)) {
+            playerName = playerById.get(pid);
+          }
+        }
+
+        // For subs, also include the player coming on
+        let detail = playerName;
+        if (action === 'substitution') {
+          const inId = e.Data?.PlayerInId;
+          const outId = e.Data?.PlayerOutId ?? e.Data?.PlayerId;
+          const inName = typeof inId === 'number' ? playerById.get(inId) : undefined;
+          const outName = typeof outId === 'number' ? playerById.get(outId) : undefined;
+          if (inName && outName) detail = `↑ ${inName}  ↓ ${outName}`;
+          else if (inName) detail = `↑ ${inName}`;
+          else if (outName) detail = `↓ ${outName}`;
+        }
+
         return {
           id: `${e.FixtureId}-${e.Seq ?? e.seq ?? e.Id ?? Math.random()}`,
           minute,
           type: this.actionToEventType(action),
           title: this.actionToLabel(action),
-          description: e.player ?? this.actionToLabel(action),
+          description: detail ?? this.actionToLabel(action),
           team: participant ? (isHome ? 'HOME' : 'AWAY') : 'NONE',
-          player: e.player,
+          player: detail,
           timestamp: ts ? String(ts) : new Date().toISOString(),
         };
       })
