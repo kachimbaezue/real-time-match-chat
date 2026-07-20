@@ -12,6 +12,7 @@ import {
   Activity01Icon as HotIcon,
   ChampionIcon,
   BookmarkAdd02Icon,
+  Menu01Icon,
 } from "hugeicons-react";
 import { type Match } from "@/lib/matches";
 import { fetchHomeMatches } from "@/lib/api";
@@ -224,7 +225,61 @@ function SearchModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* ── AppLayout ──────────────────────────────────────────────────────────────── */
+/* ── Mobile nav drawer ─────────────────────────────────────────────────────── */
+function MobileDrawer({ onClose }: { onClose: () => void }) {
+  const { pathname } = useLocation();
+  return (
+    <div
+      className="fixed inset-0 z-50 flex lg:hidden"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
+      {/* Panel slides in from left */}
+      <div
+        className="relative flex flex-col w-64 h-full animate-slide-in-left"
+        style={{ background: "var(--panel)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-5 pb-3 border-b border-border">
+          <img src="/logo.png" alt="Pulse" className="h-8 w-8 object-contain" />
+          <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
+            <Cancel01Icon size={18} strokeWidth={1.75} />
+          </button>
+        </div>
+        {/* All nav items */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+          {NAV.map(({ to, label, icon: Icon }) => {
+            const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                onClick={onClose}
+                className={[
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors",
+                  active ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/8 hover:text-foreground",
+                ].join(" ")}
+              >
+                <Icon size={18} strokeWidth={active ? 2 : 1.6} />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+        {/* Sponsor logos */}
+        <div className="px-4 py-4 border-t border-border flex items-center gap-3">
+          <img src="/solana.png" alt="Solana" className="h-6 w-6 object-contain opacity-70" />
+          <img src="/super-teamlogo.png" alt="Superteam" className="h-6 object-contain opacity-70" style={{ maxWidth: 80 }} />
+          <img src="/txline-logo.svg" alt="TxLine" className="h-5 object-contain opacity-70" style={{ maxWidth: 60 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(true);
@@ -422,6 +477,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 export function TopBar({ title, action }: { title: string; action?: ReactNode }) {
   const [mount, setMount] = useState<Element | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     setMount(document.getElementById("header-mount"));
@@ -429,15 +485,22 @@ export function TopBar({ title, action }: { title: string; action?: ReactNode })
 
   const bar = (
     <div
-      className="flex h-13 items-center justify-between px-5 lg:px-6"
+      className="flex h-13 items-center justify-between px-4 lg:px-6"
       style={{ background: "var(--panel)" }}
     >
-      <div className="flex items-center gap-2.5">
-        {/* Logo visible on mobile always; on desktop only when sidebar might be collapsed */}
-        <img src="/logo.png" alt="" className="h-6 w-6 object-contain lg:hidden" />
-        {/* Show title text on mobile; on desktop show nothing — sidebar logo covers it */}
+      {/* Left: hamburger on mobile, logo on desktop */}
+      <div className="flex items-center gap-2">
+        <button
+          aria-label="Menu"
+          onClick={() => setDrawerOpen(true)}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--color-elevated)] hover:text-foreground transition-colors lg:hidden"
+        >
+          <Menu01Icon size={18} strokeWidth={1.75} />
+        </button>
         <h1 className="font-display text-[15px] font-bold tracking-tight lg:hidden">{title}</h1>
       </div>
+
+      {/* Right: action or search */}
       <div className="flex items-center gap-1.5">
         {action ?? (
           <button
@@ -452,6 +515,10 @@ export function TopBar({ title, action }: { title: string; action?: ReactNode })
 
       {searchOpen && ReactDOM.createPortal(
         <SearchModal onClose={() => setSearchOpen(false)} />,
+        document.body
+      )}
+      {drawerOpen && ReactDOM.createPortal(
+        <MobileDrawer onClose={() => setDrawerOpen(false)} />,
         document.body
       )}
     </div>

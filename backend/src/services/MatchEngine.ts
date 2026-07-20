@@ -17,12 +17,12 @@ const KNOWN_WC_FINISHED_FIXTURES: Array<{
   StartTime: number;
   Participant1IsHome: boolean;
 }> = [
-  // England vs Argentina — Semifinal — Jul 15 2026
-  // Final score: England 1 – 2 Argentina (Stats key 1=1, key 2=2)
+  // England vs Argentina — Semifinal — Jul 15 2026 (confirmed, Stats 1=1, 2=2)
   { FixtureId: 18241006, Participant1: 'England', Participant2: 'Argentina', StartTime: 1784142000000, Participant1IsHome: true },
-  // FIFA World Cup 2026 Final — Jul 19 2026
-  // StartTime: 2026-07-19T20:00:00Z = 1784527200000
-  { FixtureId: 18241010, Participant1: 'France', Participant2: 'Spain', StartTime: 1784527200000, Participant1IsHome: true },
+  // WC 3rd Place Match — Jul 18 2026 21:00 UTC (devnet fixture 18257865, Score 4-6)
+  { FixtureId: 18257865, Participant1: 'France', Participant2: 'England', StartTime: 1784408400000, Participant1IsHome: true },
+  // WC Final — Jul 19 2026 (Spain vs Argentina, devnet fixture 18257739)
+  { FixtureId: 18257739, Participant1: 'Spain', Participant2: 'Argentina', StartTime: 1784487600000, Participant1IsHome: true },
 ];
 const LIVE_STATUSES: MatchStatus[] = [
   'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',
@@ -167,9 +167,6 @@ export class MatchEngine {
       ]);
 
       // 2. Bootstrap historical fixtures that dropped off the snapshot.
-      // Two strategies run in parallel:
-      //   a) Date-range query on /api/fixtures (discovers ALL past WC fixtures automatically)
-      //   b) TXLINE_KNOWN_FIXTURE_IDS env var + KNOWN_WC_FINISHED_FIXTURES (manual fallback)
       await this.bootstrapAllHistorical(wcId);
 
     } catch (err: any) {
@@ -246,7 +243,9 @@ export class MatchEngine {
     await Promise.allSettled(
       allIds.map(async (fixtureId) => {
         const id = String(fixtureId);
-        if (this.matches.has(id)) return; // already loaded
+        // Skip only if already confirmed finished — don't skip NOT_STARTED/LIVE which may be wrong
+        const existing = this.matches.get(id);
+        if (existing && FINISHED_STATUSES.includes(existing.status)) return;
 
         const meta = metaById.get(fixtureId);
 
