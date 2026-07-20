@@ -34,7 +34,7 @@ const NAV: readonly NavItem[] = [
   { to: "/moments",  label: "Moments",     icon: ChampionIcon               },
 ];
 
-// Only the 5 most important items on mobile bottom nav
+// Mobile nav — 5 core items (v2)
 const MOBILE_NAV: readonly NavItem[] = [
   { to: "/",         label: "Home",    icon: Home01Icon                },
   { to: "/live",     label: "Live",    icon: FootballIcon, dot: "live" },
