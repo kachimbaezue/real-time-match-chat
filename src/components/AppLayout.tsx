@@ -27,11 +27,20 @@ type NavItem = {
 const NAV: readonly NavItem[] = [
   { to: "/",         label: "Home",        icon: Home01Icon                 },
   { to: "/live",     label: "Live",        icon: FootballIcon, dot: "live"  },
-  { to: "/hot",      label: "Hot",         icon: HotIcon,    dot: "hot"  },
-  { to: "/moments",  label: "Moments",     icon: ChampionIcon               },
-  { to: "/memories", label: "My Memories", icon: BookmarkAdd02Icon          },
-  { to: "/upcoming", label: "Upcoming",    icon: Calendar01Icon             },
+  { to: "/hot",      label: "Hot",         icon: HotIcon,      dot: "hot"   },
   { to: "/recent",   label: "Recent",      icon: Clock01Icon                },
+  { to: "/memories", label: "Memories",    icon: BookmarkAdd02Icon          },
+  { to: "/upcoming", label: "Upcoming",    icon: Calendar01Icon             },
+  { to: "/moments",  label: "Moments",     icon: ChampionIcon               },
+];
+
+// Only the 5 most important items on mobile bottom nav
+const MOBILE_NAV: readonly NavItem[] = [
+  { to: "/",         label: "Home",    icon: Home01Icon                },
+  { to: "/live",     label: "Live",    icon: FootballIcon, dot: "live" },
+  { to: "/hot",      label: "Hot",     icon: HotIcon,      dot: "hot"  },
+  { to: "/recent",   label: "Recent",  icon: Clock01Icon               },
+  { to: "/memories", label: "Saved",   icon: BookmarkAdd02Icon         },
 ];
 
 const OPEN_W  = 220;
@@ -358,7 +367,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             className="h-full rounded-xl overflow-hidden"
             style={{ background: "var(--surface)" }}
           >
-            <main className="h-full overflow-y-auto overflow-x-hidden pb-20 lg:pb-6 animate-page-enter">
+            <main className="h-full overflow-y-auto overflow-x-hidden pb-24 lg:pb-6 animate-page-enter">
               {children}
             </main>
           </div>
@@ -367,11 +376,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {/* ── Mobile bottom nav ── */}
       <nav
-        className="fixed bottom-4 left-1/2 z-40 lg:hidden -translate-x-1/2 rounded-2xl border border-border shadow-2xl"
-        style={{ background: "var(--panel)", width: "calc(100% - 2rem)" }}
+        className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-border"
+        style={{ background: "var(--panel)" }}
       >
-        <div className="flex items-center justify-around px-2 py-2">
-          {NAV.map(({ to, label, icon: Icon, dot }) => {
+        <div className="flex items-center justify-around px-1 py-1 pb-safe">
+          {MOBILE_NAV.map(({ to, label, icon: Icon, dot }) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
             const showDot = dot === "live" ? hasLive : dot === "hot" ? hasLive : false;
             return (
@@ -379,21 +388,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 key={to}
                 to={to}
                 className={[
-                  "relative flex flex-1 flex-col items-center gap-0.5 rounded-md py-2",
-                  "text-[9px] font-semibold uppercase tracking-[0.1em] transition-colors press",
+                  "relative flex flex-1 flex-col items-center gap-0.5 py-2.5 px-1",
+                  "text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors",
                   active ? "text-foreground" : "text-muted-foreground",
                 ].join(" ")}
               >
                 {active && (
-                  <span className="absolute top-0 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-foreground" />
+                  <span className="absolute top-0 left-1/2 h-0.5 w-5 -translate-x-1/2 rounded-full bg-foreground" />
                 )}
                 <span className="relative">
-                  <Icon size={20} strokeWidth={active ? 2 : 1.5} />
+                  <Icon size={22} strokeWidth={active ? 2 : 1.5} />
                   {showDot && (
-                    <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
+                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[var(--color-danger)] border-2 border-[var(--panel)]" />
                   )}
                 </span>
-                <span>{label}</span>
+                <span className="leading-none">{label}</span>
               </Link>
             );
           })}
