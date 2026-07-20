@@ -421,7 +421,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
             className="h-full rounded-xl overflow-hidden"
             style={{ background: "var(--surface)" }}
           >
-            <main className="h-full overflow-y-auto overflow-x-hidden pb-24 lg:pb-6 animate-page-enter">
+            {/* pb accounts for fixed bottom nav on mobile (≈64px) + some breathing room */}
+            <main className="h-full overflow-y-auto overflow-x-hidden pb-20 lg:pb-6 animate-page-enter">
               {children}
             </main>
           </div>
@@ -433,7 +434,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-border"
         style={{ background: "var(--panel)" }}
       >
-        <div className="flex items-center justify-around px-1 py-1 pb-safe">
+        <div className="flex items-center justify-around px-1 py-2">
           {MOBILE_NAV.map(({ to, label, icon: Icon, dot }) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
             const showDot = dot === "live" ? hasLive : dot === "hot" ? hasLive : false;
