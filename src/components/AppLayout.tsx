@@ -302,7 +302,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "var(--shell)" }}>
+    <div className="flex h-screen lg:overflow-hidden" style={{ background: "var(--shell)" }}>
       <style>{`@media(min-width:1024px){.right-col{margin-left:${sideW}px}}`}</style>
 
       {/* ── Sidebar ── */}
@@ -409,20 +409,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {/* ── Right column ── */}
       <div
-        className="right-col flex flex-1 flex-col h-screen transition-[margin-left] duration-200"
+        className="right-col flex flex-1 flex-col min-h-screen lg:h-screen transition-[margin-left] duration-200"
         style={{ background: "var(--panel)" }}
       >
         {/* Header portal mount */}
         <div id="header-mount" className="shrink-0" />
 
         {/* Rounded surface content container */}
-        <div className="flex-1 min-h-0 px-2 pb-2">
+        <div className="flex-1 lg:min-h-0 px-2 pb-2">
           <div
-            className="h-full rounded-xl overflow-hidden"
+            className="lg:h-full rounded-xl overflow-hidden"
             style={{ background: "var(--surface)" }}
           >
-            {/* pb accounts for fixed bottom nav on mobile (≈64px) + some breathing room */}
-            <main className="h-full overflow-y-auto overflow-x-hidden pb-20 lg:pb-6 animate-page-enter">
+            <main className="lg:h-full lg:overflow-y-auto overflow-x-hidden pb-24 lg:pb-6 animate-page-enter">
               {children}
             </main>
           </div>
