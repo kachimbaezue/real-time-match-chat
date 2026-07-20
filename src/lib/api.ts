@@ -5,7 +5,7 @@
  */
 import type { Match } from "@/lib/matches";
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3001";
+const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) || "https://real-time-match-chat.onrender.com";
 
 async function get<T>(path: string): Promise<T> {
   const controller = new AbortController();

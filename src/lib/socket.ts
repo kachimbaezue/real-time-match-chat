@@ -9,7 +9,7 @@
 import type { Socket } from "socket.io-client";
 import type { Match, TimelineEvent } from "@/lib/matches";
 
-const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL as string | undefined) ?? "http://localhost:3001";
+const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL as string | undefined) || "https://real-time-match-chat.onrender.com";
 
 // Lazy singleton — only connects in the browser, never during SSR
 let _socket: Socket | null = null;
