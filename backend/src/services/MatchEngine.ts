@@ -17,12 +17,12 @@ const KNOWN_WC_FINISHED_FIXTURES: Array<{
   StartTime: number;
   Participant1IsHome: boolean;
 }> = [
-  // England vs Argentina — Semifinal — Jul 15 2026 (confirmed, Stats 1=1, 2=2)
-  { FixtureId: 18241006, Participant1: 'England', Participant2: 'Argentina', StartTime: 1784142000000, Participant1IsHome: true },
-  // WC 3rd Place Match — Jul 18 2026 21:00 UTC (devnet fixture 18257865, Score 4-6)
-  { FixtureId: 18257865, Participant1: 'France', Participant2: 'England', StartTime: 1784408400000, Participant1IsHome: true },
   // WC Final — Jul 19 2026 (Spain vs Argentina, devnet fixture 18257739)
   { FixtureId: 18257739, Participant1: 'Spain', Participant2: 'Argentina', StartTime: 1784487600000, Participant1IsHome: true },
+  // WC 3rd Place — Jul 18 2026 (France vs England, devnet fixture 18257865, Score 4-6)
+  { FixtureId: 18257865, Participant1: 'France', Participant2: 'England', StartTime: 1784408400000, Participant1IsHome: true },
+  // Semifinal — England vs Argentina — Jul 15 2026 (confirmed, Stats 1=1, 2=2)
+  { FixtureId: 18241006, Participant1: 'England', Participant2: 'Argentina', StartTime: 1784142000000, Participant1IsHome: true },
 ];
 const LIVE_STATUSES: MatchStatus[] = [
   'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'EXTRA_TIME', 'PENALTIES',

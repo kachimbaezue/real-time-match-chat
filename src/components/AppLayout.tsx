@@ -12,7 +12,6 @@ import {
   Activity01Icon as HotIcon,
   ChampionIcon,
   BookmarkAdd02Icon,
-  Menu01Icon,
 } from "hugeicons-react";
 import { type Match } from "@/lib/matches";
 import { fetchHomeMatches } from "@/lib/api";
@@ -495,7 +494,7 @@ export function TopBar({ title, action }: { title: string; action?: ReactNode })
           onClick={() => setDrawerOpen(true)}
           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--color-elevated)] hover:text-foreground transition-colors lg:hidden"
         >
-          <Menu01Icon size={18} strokeWidth={1.75} />
+          <SidebarLeft01Icon size={18} strokeWidth={1.75} />
         </button>
         <h1 className="font-display text-[15px] font-bold tracking-tight lg:hidden">{title}</h1>
       </div>
